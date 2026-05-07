@@ -1,0 +1,12 @@
+"filename", "language", "Go Module File", "Go", "YAML", "Go Checksum File", "comment", "blank", "total"
+"/home/cpmores/Documents/development/repo/lucinda/api/v1/ollama.go", "Go", 0, 41, 0, 0, 2, 7, 50
+"/home/cpmores/Documents/development/repo/lucinda/api/v1/types.go", "Go", 0, 20, 0, 0, 4, 6, 30
+"/home/cpmores/Documents/development/repo/lucinda/cmd/node/main.go", "Go", 0, 29, 0, 0, 0, 9, 38
+"/home/cpmores/Documents/development/repo/lucinda/configs/server/config.yaml", "YAML", 0, 0, 10, 0, 1, 1, 12
+"/home/cpmores/Documents/development/repo/lucinda/go.mod", "Go Module File", 20, 0, 0, 0, 0, 4, 24
+"/home/cpmores/Documents/development/repo/lucinda/go.sum", "Go Checksum File", 0, 0, 0, 49, 0, 1, 50
+"/home/cpmores/Documents/development/repo/lucinda/internel/provider/ollama_driver.go", "Go", 0, 63, 0, 0, 5, 12, 80
+"/home/cpmores/Documents/development/repo/lucinda/internel/provider/provider.go", "Go", 0, 15, 0, 0, 0, 6, 21
+"/home/cpmores/Documents/development/repo/lucinda/internel/server/httpServer.go", "Go", 0, 92, 0, 0, 3, 21, 116
+"/home/cpmores/Documents/development/repo/lucinda/internel/server/server.go", "Go", 0, 39, 0, 0, 5, 12, 56
+"Total", "-", 20, 299, 10, 49, 20, 79, 477
