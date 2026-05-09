@@ -10,7 +10,7 @@ import (
 )
 
 type TaskDivider interface {
-	Divide(ctx context.Context, policyKey string, traceID string, req *api.ChatRequest) (*ExecutionPlan, error)
+	Divide(ctx context.Context, task *api.Task) (*ExecutionPlan, error)
 }
 
 // one single task divided into multiple sub-tasks
@@ -38,7 +38,7 @@ func (e *ExecutionPlan) GetTasks() []*SubTask {
 var DividePolicies map[string]*DividerPolicy = make(map[string]*DividerPolicy)
 
 type DividerPolicy interface {
-	Divide(ctx context.Context, traceId string, req *api.ChatRequest) (*ExecutionPlan, error)
+	Divide(ctx context.Context, traceId string, reducedId string, req *api.ChatRequest) (*ExecutionPlan, error)
 	GetMetaData() policy.Policy
 }
 
@@ -59,15 +59,17 @@ func IfPolicyInDivide(policy policy.Policy) bool {
 	return true
 }
 
-type DefaultTaskDivier struct{}
+type DefaultTaskDivier struct {
+	policyKey string
+}
 
-func (divider *DefaultTaskDivier) Divide(ctx context.Context, policyKey string, traceID string, req *api.ChatRequest) (*ExecutionPlan, error) {
-	dividerPolicy, ok := DividePolicies[policyKey]
+func (divider *DefaultTaskDivier) Divide(ctx context.Context, task *api.Task) (*ExecutionPlan, error) {
+	dividerPolicy, ok := DividePolicies[divider.policyKey]
 	if !ok {
-		return nil, fmt.Errorf("no divide %s policy founded", policyKey)
+		return nil, fmt.Errorf("no divide %s policy founded", divider.policyKey)
 	}
 
-	executionPlan, err := (*dividerPolicy).Divide(ctx, traceID, req)
+	executionPlan, err := (*dividerPolicy).Divide(ctx, task.TraceID, task.ReducedID, task.Request)
 	if err != nil {
 		return nil, err
 	}

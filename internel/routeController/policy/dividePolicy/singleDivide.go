@@ -13,9 +13,10 @@ type SingleDividerPolicy struct {
 	Metadata policy.Policy
 }
 
-func (policy *SingleDividerPolicy) Divide(ctx context.Context, traceID string, req *api.ChatRequest) (*taskdivider.ExecutionPlan, error) {
+func (policy *SingleDividerPolicy) Divide(ctx context.Context, traceID string, reducedID string, req *api.ChatRequest) (*taskdivider.ExecutionPlan, error) {
 	subtask := &taskdivider.SubTask{
 		ID:        "singleTest",
+		ReducedID: reducedID,
 		Request:   req,
 		DependsOn: make([]string, 0),
 	}

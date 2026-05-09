@@ -10,3 +10,9 @@ http:
   read_timeout: 30s
   write_timeout: 30s
   idle_timeout: 120s
+
+transport:
+  type: "libp2p"
+  libp2p:
+    addrs:
+      - "/ip4/0.0.0.0/tcp/0"

@@ -1,0 +1,59 @@
+Date : 2026-05-09 22:54:03
+Directory : /home/cpmores/Documents/development/repo/lucinda
+Total : 14 files,  666 codes, 25 comments, 95 blanks, all 786 lines
+
+Languages
++------------------+------------+------------+------------+------------+------------+
+| language         | files      | code       | comment    | blank      | total      |
++------------------+------------+------------+------------+------------+------------+
+| Go               |         10 |        339 |         25 |         76 |        440 |
+| Go Checksum File |          1 |        214 |          0 |          0 |        214 |
+| Go Module File   |          1 |         85 |          0 |          0 |         85 |
+| Markdown         |          1 |         22 |          0 |         18 |         40 |
+| YAML             |          1 |          6 |          0 |          1 |          7 |
++------------------+------------+------------+------------+------------+------------+
+
+Directories
++---------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                          | files      | code       | comment    | blank      | total      |
++---------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                             |         14 |        666 |         25 |         95 |        786 |
+| . (Files)                                                                                                     |          3 |        321 |          0 |         18 |        339 |
+| api                                                                                                           |          2 |         14 |          2 |          2 |         18 |
+| api/v1                                                                                                        |          2 |         14 |          2 |          2 |         18 |
+| cmd                                                                                                           |          1 |         18 |          1 |          5 |         24 |
+| cmd/node                                                                                                      |          1 |         18 |          1 |          5 |         24 |
+| configs                                                                                                       |          1 |          6 |          0 |          1 |          7 |
+| configs/server                                                                                                |          1 |          6 |          0 |          1 |          7 |
+| internel                                                                                                      |          7 |        307 |         22 |         69 |        398 |
+| internel/routeController                                                                                      |          4 |          7 |          1 |          0 |          8 |
+| internel/routeController/policy                                                                               |          2 |          2 |          1 |          0 |          3 |
+| internel/routeController/policy/dividePolicy                                                                  |          1 |          1 |          0 |          0 |          1 |
+| internel/routeController/policy/postPolicy                                                                    |          1 |          1 |          1 |          0 |          2 |
+| internel/routeController/taskDivider                                                                          |          1 |          2 |          0 |          0 |          2 |
+| internel/routeController/taskRouter                                                                           |          1 |          3 |          0 |          0 |          3 |
+| internel/transport                                                                                            |          3 |        300 |         21 |         69 |        390 |
+| internel/transport (Files)                                                                                    |          1 |         30 |          1 |         10 |         41 |
+| internel/transport/libp2p                                                                                     |          2 |        270 |         20 |         59 |        349 |
++---------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++---------------------------------------------------------------------------------------------------------------+------------------+------------+------------+------------+------------+
+| filename                                                                                                      | language         | code       | comment    | blank      | total      |
++---------------------------------------------------------------------------------------------------------------+------------------+------------+------------+------------+------------+
+| /home/cpmores/Documents/development/repo/lucinda/README.md                                                    | Markdown         |         22 |          0 |         18 |         40 |
+| /home/cpmores/Documents/development/repo/lucinda/api/v1/node.go                                               | Go               |          8 |          2 |          2 |         12 |
+| /home/cpmores/Documents/development/repo/lucinda/api/v1/router.go                                             | Go               |          6 |          0 |          0 |          6 |
+| /home/cpmores/Documents/development/repo/lucinda/cmd/node/main.go                                             | Go               |         18 |          1 |          5 |         24 |
+| /home/cpmores/Documents/development/repo/lucinda/configs/server/config.yaml                                   | YAML             |          6 |          0 |          1 |          7 |
+| /home/cpmores/Documents/development/repo/lucinda/go.mod                                                       | Go Module File   |         85 |          0 |          0 |         85 |
+| /home/cpmores/Documents/development/repo/lucinda/go.sum                                                       | Go Checksum File |        214 |          0 |          0 |        214 |
+| /home/cpmores/Documents/development/repo/lucinda/internel/routeController/policy/dividePolicy/singleDivide.go | Go               |          1 |          0 |          0 |          1 |
+| /home/cpmores/Documents/development/repo/lucinda/internel/routeController/policy/postPolicy/sequencePost.go   | Go               |          1 |          1 |          0 |          2 |
+| /home/cpmores/Documents/development/repo/lucinda/internel/routeController/taskDivider/taskDivider.go          | Go               |          2 |          0 |          0 |          2 |
+| /home/cpmores/Documents/development/repo/lucinda/internel/routeController/taskRouter/router.go                | Go               |          3 |          0 |          0 |          3 |
+| /home/cpmores/Documents/development/repo/lucinda/internel/transport/libp2p/host.go                            | Go               |        236 |         19 |         52 |        307 |
+| /home/cpmores/Documents/development/repo/lucinda/internel/transport/libp2p/mDNS.go                            | Go               |         34 |          1 |          7 |         42 |
+| /home/cpmores/Documents/development/repo/lucinda/internel/transport/transporter.go                            | Go               |         30 |          1 |         10 |         41 |
+| Total                                                                                                         |                  |        666 |         25 |         95 |        786 |
++---------------------------------------------------------------------------------------------------------------+------------------+------------+------------+------------+------------+

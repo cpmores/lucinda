@@ -12,8 +12,8 @@ import (
 )
 
 type TaskRouter interface {
-	Route(ctx context.Context, policyKey string, plan *taskdivider.ExecutionPlan) (*RoutedTasks, error)
-	Post(ctx context.Context, policyKey string, routedTasks *RoutedTasks) (*RoutedResults, error)
+	Route(ctx context.Context, plan *taskdivider.ExecutionPlan) (*RoutedTasks, error)
+	Post(ctx context.Context, routedTasks *RoutedTasks) (*RoutedResults, error)
 }
 
 type RoutedTasks struct {
@@ -67,12 +67,15 @@ func IfPolicyInPost(policy policy.Policy) bool {
 	return true
 }
 
-type DefaultTaskRouter struct{}
+type DefaultTaskRouter struct {
+	routePolicyKey string
+	postPolicyKey  string
+}
 
-func (router *DefaultTaskRouter) Route(ctx context.Context, policyKey string, plan *taskdivider.ExecutionPlan) (*RoutedTasks, error) {
-	routePolicy, ok := RoutePolicies[policyKey]
+func (router *DefaultTaskRouter) Route(ctx context.Context, plan *taskdivider.ExecutionPlan) (*RoutedTasks, error) {
+	routePolicy, ok := RoutePolicies[router.routePolicyKey]
 	if !ok {
-		return nil, fmt.Errorf("no route %s policy founded", policyKey)
+		return nil, fmt.Errorf("no route %s policy founded", router.routePolicyKey)
 	}
 
 	routedTasks, err := (*routePolicy).Route(ctx, plan)
@@ -83,10 +86,10 @@ func (router *DefaultTaskRouter) Route(ctx context.Context, policyKey string, pl
 	return routedTasks, nil
 }
 
-func (router *DefaultTaskRouter) Post(ctx context.Context, policyKey string, routedTasks *RoutedTasks) (*RoutedResults, error) {
-	postPolicy, ok := PostPolicies[policyKey]
+func (router *DefaultTaskRouter) Post(ctx context.Context, routedTasks *RoutedTasks) (*RoutedResults, error) {
+	postPolicy, ok := PostPolicies[router.postPolicyKey]
 	if !ok {
-		return nil, fmt.Errorf("no post %s policy founded", policyKey)
+		return nil, fmt.Errorf("no post %s policy founded", router.postPolicyKey)
 	}
 
 	routedResults, err := (*postPolicy).Post(ctx, routedTasks)

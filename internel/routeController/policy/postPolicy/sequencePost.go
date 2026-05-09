@@ -14,4 +14,5 @@ type SequencePost struct {
 func (policy *SequencePost) Post(ctx context.Context, routedTasks *taskrouter.RoutedTasks) (*taskrouter.RoutedResults, error) {
 	// TODO
 	
+	return nil, nil
 }

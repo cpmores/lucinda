@@ -8,5 +8,5 @@ import (
 )
 
 type TaskReducer interface {
-	Reduce(ctx context.Context, policyId string, routedResults taskrouter.RoutedResults) (*api.ChatResponse, error)
+	Reduce(ctx context.Context, routedResults taskrouter.RoutedResults) (*api.ChatResponse, error)
 }
