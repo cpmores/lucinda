@@ -15,26 +15,46 @@ Unlike traditional operating systems that manage CPU/RAM for processes, or Kuber
 
 ### Server
 
-### RouterController
+Different servers for different apis facing users, it receives `ChatRequest` and sends `ChatResponse` back.
 
-#### TaskDivider
+### Monitor
 
-#### TaskRouter
+Handle nodes' status, provide information for those modules need to make decisions, including *RouterController*, *Scheduler* and *ContextManager*.
 
-#### TaskReducer
+### RouteController
 
-#### Policy
+`RouteController` manages **task wrapping**, **task dividing**, **task routing** and **task reducing**, it receives `ChatRequest` and returns `ChatResponse` to *Server* 
 
-#### CapabilityMetrics
++ **TaskWrapper**: wrap `ChatRequest` into `Task`
++ **TaskDivider**: divide `Task` into `SubTask`, then build an `TaskPlan`
++ **TaskRouter**: 
+  + **route**: According to `TaskPlan`, route `SubTask` to proper nodes, and produce `RouterPlan`
+  + **post**: post `RoutedTask` to specific nodes, then get channels `RoutedResults`
 
-### Transport
-
-using `libp2p`
-
-### Provider
-
-### Toolbox
++ **TaskReducer**: Reduce `RoutedResult` to a full `ChatResponse`, then send back to *Server*
 
 ### Scheduler 
 
+**Scheduler** receives `SubTask` and builds an `ExecutionPlan`  
+
+### Executor
+
+**Executor** receives `ExectionPlan`, then generate `RoutedResult` back to Boss Node. 
+
+### Transport
+
+This layer deals with basic connections between nodes.
+
+**Transporter** in this module manages **internel node connection** and **raw `NodeMessage` sending**.
+
+### Provider
+
+`Provider` is the interface for agents.
+
+### Toolbox
+
+**Toolbox** provides some safe but additional operations for agents. 
+
 ### ContextManager
+
+**ContextManager** manages context for agents. 
