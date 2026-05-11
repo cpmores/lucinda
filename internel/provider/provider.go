@@ -16,7 +16,7 @@ type AIProvider interface {
 	GetId() (string, error)
 	Generate(ctx context.Context, req *api.ChatRequest) (*api.ChatResponse, error)
 	Stream(ctx context.Context, req *api.ChatRequest) (<-chan *api.ChatResponse, error)
-	GetCapability() *api.NodeStatus
+	GetStatus() *api.ProviderStatus
 	CheckHealth() error
 }
 

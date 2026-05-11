@@ -84,7 +84,7 @@ func (prov *OllamaProvider) Stream(ctx context.Context, req *api.ChatRequest) (<
 	// not implement
 	return nil, nil
 }
-func (prov *OllamaProvider) GetCapability() *api.NodeStatus {
+func (prov *OllamaProvider) GetStatus() *api.ProviderStatus {
 	// not implement
 	return nil
 }

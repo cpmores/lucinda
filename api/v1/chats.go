@@ -20,10 +20,6 @@ type ChatResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 	Message   Message   `json:"message"`
 	Done      bool      `json:"done"`
-	Provider  string	`json:"provider"`
+	Provider  string    `json:"provider"`
 	Metadata  any       `json:"metadata"`
-}
-
-// healthz
-type NodeStatus struct {
 }
