@@ -1,4 +1,4 @@
-# lucinda
+# Lucinda
 
 **Lucinda** is a distributed AI-Operating System purpose-built for the edge.
 
