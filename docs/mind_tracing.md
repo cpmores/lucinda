@@ -9,10 +9,10 @@
    - [ ] provider status
    - [ ] provider controller: status managing
 
-3. Monitor (only for local)
+3. Monitor (only for processing)
 
    - [ ] node status
-   - [ ] provider status (from provider controller)
+   - [ ] requested provider status (from provider controller)
    - [ ] task status
 
 4. Transport

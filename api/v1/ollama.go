@@ -47,3 +47,30 @@ func ConvertOllamaToChat(ctx context.Context, ollamaResp OllamaResponse) (*ChatR
 		Metadata:  ollamaResp.OllamaMetadata,
 	}, nil
 }
+
+// Ollama ps response
+type OllamaPsResponse struct {
+	Models []OllamaLoadedModel `json:"models"`
+}
+
+// OllamaLoadedModel
+type OllamaLoadedModel struct {
+	Name          string       `json:"name"`
+	Model         string       `json:"model"`
+	Size          int64        `json:"size"`
+	Digest        string       `json:"digest"`
+	Details       ModelDetails `json:"details"`
+	ExpiresAt     time.Time    `json:"expires_at"`
+	SizeVRAM      int64        `json:"size_vram"`
+	ContextLength int64        `json:"context_length"`
+}
+
+// ModelDetails
+type ModelDetails struct {
+	ParentModel       string   `json:"parent_model"`
+	Format            string   `json:"format"`
+	Family            string   `json:"family"`
+	Families          []string `json:"families"`
+	ParameterSize     string   `json:"parameter_size"`
+	QuantizationLevel string   `json:"quantization_level"`
+}

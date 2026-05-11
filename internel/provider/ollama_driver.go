@@ -84,10 +84,66 @@ func (prov *OllamaProvider) Stream(ctx context.Context, req *api.ChatRequest) (<
 	// not implement
 	return nil, nil
 }
-func (prov *OllamaProvider) GetStatus() *api.ProviderStatus {
+func (prov *OllamaProvider) GetStatus() (*api.ProviderStatus, error) {
 	// not implement
-	return nil
+	// load to provider status
+	ps := prov.NewPreProviderStatus()
+	psResp, err := prov.GetProviderPsresponse()
+	if err != nil {
+		return nil, fmt.Errorf("get provider ps response: %w", err)
+	}
+
+	ps = api.AddAIModelInfoToProviderStatus(ps, psResp)
+	// TODO:monitor adding TaskRuntimeStatus
+
+	return ps, nil
 }
+
+// load taskruntime status from monitor module
+func (prov *OllamaProvider) NewPreProviderStatus() *api.ProviderStatus {
+	return &api.ProviderStatus{
+		ID:        prov.Id,
+		Timestamp: time.Now().Unix(),
+		State:     1, // default healthy
+
+		AIModelInfo:       api.AIModelInfo{},
+		TaskRuntimeStatus: api.TaskRuntimeStatus{},
+	}
+}
+
+func (prov *OllamaProvider) GetProviderPsresponse() (*api.OllamaPsResponse, error) {
+	// not implement
+	url, _ := url.JoinPath(prov.BaseURL, "/api/ps")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("request generation failed, url: %s", url)
+	}
+
+	resp, err := prov.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("get provider ps returns code %d", resp.StatusCode)
+	}
+
+	var psResp api.OllamaPsResponse
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(respBody, &psResp); err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	return &psResp, nil
+}
+
 func (prov *OllamaProvider) CheckHealth() error {
 	url, _ := url.JoinPath(prov.BaseURL, "/")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

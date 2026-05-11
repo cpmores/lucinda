@@ -1,0 +1,10 @@
+curl -X POST http://localhost:8080/ollama \
+  -H "Content-Type: text/plain" \
+  -d "你好"
+
+curl -X GET http://localhost:11434/api/ps     
+{"models":[{"name":"gemma3:latest","model":"gemma3:latest","size":4272855488,
+"digest":"a2af6cc3eb7fa8be8504abaf9b04e88f17a119ec3f04a3addf55f92841195f5a",
+"details":{"parent_model":"","format":"gguf","family":"gemma3",
+"families":["gemma3"],"parameter_size":"4.3B","quantization_level":"Q4_K_M"},
+"expires_at":"2026-05-11T17:30:51.60883426+08:00","size_vram":0,"context_length":4096}]}

@@ -16,7 +16,7 @@ type AIProvider interface {
 	GetId() (string, error)
 	Generate(ctx context.Context, req *api.ChatRequest) (*api.ChatResponse, error)
 	Stream(ctx context.Context, req *api.ChatRequest) (<-chan *api.ChatResponse, error)
-	GetStatus() *api.ProviderStatus
+	GetStatus() (*api.ProviderStatus, error)
 	CheckHealth() error
 }
 
@@ -52,6 +52,6 @@ func CreateProvider(platform string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	Providers[id] = provider
+	ProviderController.UpdateProvider(id, provider)
 	return id, nil
 }

@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"log"
+	"net/http"
 
 	"github.com/cpmores/lucinda/api/v1"
 	"github.com/cpmores/lucinda/internel/provider"
@@ -49,7 +49,13 @@ func (hs *HttpServer) setupRouters() {
 
 func ollamaChatHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
-	ollamaProvider := provider.Providers["ollama"]
+	ollamaProvider, err := provider.ProviderController.GetProvider("ollama")
+	if err != nil {
+		http.Error(w,
+			err.Error(),
+			http.StatusInternalServerError)
+
+	}
 	reqContent, err := io.ReadAll(r.Body)
 	defer r.Body.Close()
 	if err != nil {
