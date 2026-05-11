@@ -19,33 +19,32 @@ Different servers for different apis facing users, it receives `ChatRequest` and
 
 ### Monitor
 
-Handle nodes' status, provide information for those modules need to make decisions, including *RouterController*, *Scheduler* and *ContextManager*.
+Trace **nodes' status**, **providers’ status** and **tasks’ status** providing information for those modules need to make decisions, including *RouterController*, *Scheduler* and *ContextManager*.
 
-### RouteController
+### TaskController
 
-`RouteController` manages **task wrapping**, **task dividing**, **task routing** and **task reducing**, it receives `ChatRequest` and returns `ChatResponse` to *Server* 
+`TaskController` manages **task wrapping**, **task dividing**, **task routing** and **task reducing**, it receives `ChatRequest` and returns `ChatResponse` to *Server* 
 
-+ **TaskWrapper**: wrap `ChatRequest` into `Task`
++ **TaskWrapper**: wrap `ChatRequest` into `Task` , labeling this task.
 + **TaskDivider**: divide `Task` into `SubTask`, then build an `TaskPlan`
-+ **TaskRouter**: 
-  + **route**: According to `TaskPlan`, route `SubTask` to proper nodes, and produce `RouterPlan`
-  + **post**: post `RoutedTask` to specific nodes, then get channels `RoutedResults`
++ **TaskBoard**: load `TaskPlan` into board, inform *Provider* of `TaskPlan` , waiting for requests
+  
++ **TaskAssigner**: assgin `SubTask` to *Provider* requested
+  
++ **TaskReducer**: Reduce `Result` to a full `ChatResponse`, then send back to *Server*
 
-+ **TaskReducer**: Reduce `RoutedResult` to a full `ChatResponse`, then send back to *Server*
+### TaskExecutor
 
-### Scheduler 
-
-**Scheduler** receives `SubTask` and builds an `ExecutionPlan`  
-
-### Executor
-
-**Executor** receives `ExectionPlan`, then generate `RoutedResult` back to Boss Node. 
++ **Scheduler**: receive `SubTask` and **rank** according to **urgency** and **forcasted time**.
++ **Executor**: Generate `Result` back to Boss Node. 
 
 ### Transport
 
 This layer deals with basic connections between nodes.
 
-**Transporter** in this module manages **internel node connection** and **raw `NodeMessage` sending**.
++ **Transporter**: manage **internel node connection** and **raw `NodeMessage` sending**.
+
++ **Trigger**: transform incoming `NodeMessage` to proper internel `Action` .
 
 ### Provider
 
@@ -53,8 +52,8 @@ This layer deals with basic connections between nodes.
 
 ### Toolbox
 
-**Toolbox** provides some safe but additional operations for agents. 
+**Toolbox** provides some safe but additional operations for *Provider*. 
 
 ### ContextManager
 
-**ContextManager** manages context for agents. 
+**ContextManager** manages context for *Provider*. 
