@@ -6,14 +6,14 @@
 2. Provider
 
    - [x] basic API for ollama
-   - [ ] provider status
-   - [ ] provider controller: status managing
+   - [x] provider status
+   - [x] provider controller: status managing
 
 3. Monitor (only for processing)
 
-   - [ ] node status
+   - [x] node status
    - [ ] requested provider status (from provider controller)
-   - [ ] task status
+   - [x] task status
 
 4. Transport
 
