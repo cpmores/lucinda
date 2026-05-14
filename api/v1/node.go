@@ -9,3 +9,8 @@ type NodeMessage struct {
 	From       NodeID `json:"from"`
 }
 type NodeMessageHandler func(msg *NodeMessage) error
+
+type NodeStatus struct {
+	NodeID NodeID
+	Peers  []NodeID
+}

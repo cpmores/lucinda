@@ -13,7 +13,7 @@ var Providers map[string]AIProvider = make(map[string]AIProvider)
 type ProviderType string
 
 type AIProvider interface {
-	GetId() (string, error)
+	GetId() string
 	Generate(ctx context.Context, req *api.ChatRequest) (*api.ChatResponse, error)
 	Stream(ctx context.Context, req *api.ChatRequest) (<-chan *api.ChatResponse, error)
 	GetStatus() (*api.ProviderStatus, error)
@@ -48,10 +48,7 @@ func CreateProvider(platform string) (string, error) {
 		return "", err
 	}
 
-	id, err := provider.GetId()
-	if err != nil {
-		return "", err
-	}
+	id := provider.GetId()
 	ProviderController.UpdateProvider(id, provider)
 	return id, nil
 }

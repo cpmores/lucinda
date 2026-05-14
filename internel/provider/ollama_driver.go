@@ -31,12 +31,8 @@ func defaultOllamaProvider() *OllamaProvider {
 		},
 	}
 }
-func (prov *OllamaProvider) GetId() (string, error) {
-	if prov.Id == "" {
-		return "", fmt.Errorf("id not initialized")
-	}
-
-	return prov.Id, nil
+func (prov *OllamaProvider) GetId() string {
+	return prov.Id
 }
 func (prov *OllamaProvider) Generate(ctx context.Context,
 	req *api.ChatRequest) (*api.ChatResponse, error) {
@@ -93,7 +89,7 @@ func (prov *OllamaProvider) GetStatus() (*api.ProviderStatus, error) {
 		return nil, fmt.Errorf("get provider ps response: %w", err)
 	}
 
-	ps = api.AddAIModelInfoToProviderStatus(ps, psResp)
+	ps = AddAIModelInfoToProviderStatus(ps, psResp)
 	// TODO:monitor adding TaskRuntimeStatus
 
 	return ps, nil
@@ -106,8 +102,7 @@ func (prov *OllamaProvider) NewPreProviderStatus() *api.ProviderStatus {
 		Timestamp: time.Now().Unix(),
 		State:     1, // default healthy
 
-		AIModelInfo:       api.AIModelInfo{},
-		TaskRuntimeStatus: api.TaskRuntimeStatus{},
+		AIModelInfo: api.AIModelInfo{},
 	}
 }
 
