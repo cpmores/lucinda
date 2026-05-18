@@ -9,3 +9,12 @@
 > 2026.05.14
 
 1. 在 `api` 中加入 `event.go` 负责消息队列，专门供给 `Monitor` 异步获取 `Status` （结构未设计完备）
+
+> 2026.05.18
+
+1. add `Publish` on `Transporter`
+2. maintain `libp2p/SubscribeProtocol` stream to only one
+3. add `NodePostman` interface under `transport`
+
+
+

@@ -172,6 +172,7 @@ func (p2p *Libp2pTransporter) Send(ctx context.Context, nodeID api.NodeID, msg *
 
 // ====================== Additional Functions For Libp2pTransporter ======================
 // using json as the message format, send a message to the target node
+// accept specific protocol from other nodes
 func (p2p *Libp2pTransporter) SubscribeProtocol(ctx context.Context, protocolID string) {
 	// setup a channel for incomming message
 	ch := make(chan *api.NodeMessage, INCOMING_CHANNEL_SIZE)
@@ -240,28 +241,43 @@ func (p2p *Libp2pTransporter) GetOutcomingChannel(ctx context.Context, protocolI
 
 // send message to targets
 func (p2p *Libp2pTransporter) sendWorker(ctx context.Context, protocolID string, target peer.ID, ch chan *api.NodeMessage) {
-	var count int
-	for msg := range ch {
+	var stream network.Stream
+	var writer msgio.WriteCloser
+
+	defer func() {
+		if writer != nil {
+			writer.Close()
+		}
+		if stream != nil {
+			stream.Close()
+		}
+	}()
+
+	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-			stream, err := p2p.Host.NewStream(ctx, target, protocol.ID(protocolID))
-			defer stream.Close()
-			if err != nil {
-				log.Printf("failed to create stream to peer %s: %s", target, err.Error())
-				count++
-				// close channel
-				if count >= SENDWORKER_RETRY_LIMIT {
-					go p2p.cleanOutcomingChannel(protocolID, target)
-				}
-				continue
+		case msg, ok := <-ch:
+			if !ok {
+				return
 			}
 
-			count = 0
+			if stream == nil {
+				var err error
+				stream, err = p2p.Host.NewStream(ctx, target, protocol.ID(protocolID))
+				if err != nil {
+					log.Printf("failed to dial: %v", err)
+					continue
+				}
+				writer = msgio.NewVarintWriter(stream)
+			}
+
 			data, _ := json.Marshal(msg)
-			writer := msgio.NewVarintWriter(stream)
-			writer.WriteMsg(data)
+			if err := writer.WriteMsg(data); err != nil {
+				log.Printf("write error, reset stream: %v", err)
+				stream.Close()
+				stream = nil
+			}
 		}
 	}
 }

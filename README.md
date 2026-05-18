@@ -13,6 +13,8 @@ Unlike traditional operating systems that manage CPU/RAM for processes, or Kuber
 
 ## Architecture && Components
 
+![](./docs/photos/Lucinda_Overall.drawio.png)
+
 ### Server
 
 Different servers for different apis facing users, it receives `ChatRequest` and sends `ChatResponse` back.
