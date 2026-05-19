@@ -1,8 +1,8 @@
-pakage api
+package api
 
 const (
-	TASK_EVENT_QUEUE_LENGTH = 100
-	NODE_EVENT_QUEUE_LENGTH = 100
+	TASK_EVENT_QUEUE_LENGTH     = 100
+	NODE_EVENT_QUEUE_LENGTH     = 100
 	PROVIDER_EVENT_QUEUE_LENGTH = 100
 )
 
@@ -18,7 +18,7 @@ type NodeEvent struct {
 
 type ProviderEvent struct {
 	ProviderID string
-	Status string
+	Status     string
 }
 
 var TaskEventQueue = make(chan TaskEvent, TASK_EVENT_QUEUE_LENGTH)

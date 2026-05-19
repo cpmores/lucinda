@@ -44,6 +44,7 @@ func CreateTransporter(name string) (Transporter, error) {
 // transport message writer and reader
 type NodePostman interface {
 	AddTransporter(transpoter Transporter) error
+	StartPumping(ctx context.Context) error                                     // output inter-node operations
 	SendMsg(ctx context.Context, nodeID api.NodeID, msg *api.NodeMessage) error // send a message to a node
 	PublishMsg(ctx context.Context, msg *api.NodeMessage) error                 // publish a message to all the neighbours
 }

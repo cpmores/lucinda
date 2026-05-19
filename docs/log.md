@@ -16,5 +16,8 @@
 2. maintain `libp2p/SubscribeProtocol` stream to only one
 3. add `NodePostman` interface under `transport`
 
+> 2026.05.19
 
+1. adding `NodePayload` under `api`
+   1. add `TaskBroadcastMsg` under `api`
 

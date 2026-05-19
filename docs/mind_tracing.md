@@ -17,7 +17,7 @@
 
 4. Transport
 
-   - [ ] transporter managing inter-node connection
+   - [x] transporter managing inter-node connection
    - [ ] design inter-node payload
 5. TaskController 
 

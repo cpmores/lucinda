@@ -24,7 +24,10 @@ type TaskMeta struct {
 }
 
 type TaskTime struct {
-	BuildTime     time.Time
+	// 1. requested time limit
+	BuildTime time.Time
+	Deadline  time.Time
+	// 2, work time limit
 	StartTime     time.Time
 	ForcastedTime time.Time
 	LeftTime      time.Time
