@@ -3,6 +3,7 @@ package monitor
 import (
 	"github.com/cpmores/lucinda/api/v1"
 	"github.com/cpmores/lucinda/internel/provider"
+	"github.com/cpmores/lucinda/internel/task"
 )
 
 type LucindaMonitor interface {
@@ -22,8 +23,8 @@ type ProviderMonitor interface {
 }
 
 type TaskMonitor interface {
-	GetTasks() (map[api.TaskID]api.Task, error)
-	GetTask(TaskID api.TaskID) (api.Task, bool)
+	GetTasks() (map[api.TaskID]task.Task, error)
+	GetTask(TaskID api.TaskID) (task.Task, bool)
 	GetCurrentTaskRuntime(ProviderID string) (TaskRuntimeStatus, error)
 }
 
@@ -74,14 +75,14 @@ func (monitor *defaultMonitor) GetProvider(ProviderID string) (api.ProviderStatu
 	return provider, exists
 }
 
-func (monitor *defaultMonitor) GetTasks() (map[api.TaskID]api.Task, error) {
+func (monitor *defaultMonitor) GetTasks() (map[api.TaskID]task.Task, error) {
 	// Implementation for getting tasks
 	return nil, nil
 }
 
-func (monitor *defaultMonitor) GetTask(TaskID api.TaskID) (api.Task, bool) {
+func (monitor *defaultMonitor) GetTask(TaskID api.TaskID) (task.Task, bool) {
 	// Implementation for getting a specific task
-	return api.Task{}, false
+	return task.Task{}, false
 }
 
 func GetCurrentTaskRuntime(ProviderID string) (TaskRuntimeStatus, error) {

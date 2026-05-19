@@ -170,6 +170,11 @@ func (p2p *Libp2pTransporter) Send(ctx context.Context, nodeID api.NodeID, msg *
 	return nil
 }
 
+func (p2p *Libp2pTransporter) Publish(ctx context.Context, msg *api.NodeMessage) error {
+	// TODO
+	return nil
+}
+
 // ====================== Additional Functions For Libp2pTransporter ======================
 // using json as the message format, send a message to the target node
 // accept specific protocol from other nodes

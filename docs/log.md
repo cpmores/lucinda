@@ -20,4 +20,7 @@
 
 1. adding `NodePayload` under `api`
    1. add `TaskBroadcastMsg` under `api`
+   2. add `TaskRequestMsg` 
+   3. add `TaskAssignMsg`
+2. adding `TaskImage` under `api`
 
