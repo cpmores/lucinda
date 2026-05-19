@@ -23,6 +23,8 @@ const (
 	TASK_BROADCAST_MSG MessageType = "TaskBroadcastMsg"
 	TASK_REQUEST_MSG   MessageType = "TaskRequestMsg"
 	TASK_ASSIGN_MSG    MessageType = "TaskAssignMsg"
+	TASK_ACCEPT_MSG    MessageType = "TaskAcceptMsg"
+	TASK_RESULT_MSG    MessageType = "TaskResultMsg"
 )
 
 // ======================= TaskBroadcastMsg ===================================
@@ -142,6 +144,73 @@ func TaskAssignMsgToJson(msg TaskAssignMsg) ([]byte, error) {
 
 // ======================= TaskAssignMsg ======================================
 
+// ======================= TaskAcceptMsg ======================================
+type TaskAcceptMsg struct {
+	TaskID   TaskID `json:"task_id"`
+	ParentID TaskID `json:"parent_id,omitempty"`
+	Owner    UserID `json:"owner"`
+
+	AcceptedTime time.Time `json:"accepted_time"`
+}
+
+func (msg *TaskAcceptMsg) GetType() MessageType {
+	return TASK_ACCEPT_MSG
+}
+
+func JsonToTaskAcceptMsg(j []byte) (PayloadStruct, error) {
+	var taskAcceptMsg TaskAcceptMsg
+	if err := json.Unmarshal(j, &taskAcceptMsg); err != nil {
+		return nil, fmt.Errorf("failed to transform json payload to TaskAcceptMsg")
+	}
+
+	return &taskAcceptMsg, nil
+}
+
+func TaskAcceptMsgToJson(msg TaskAcceptMsg) ([]byte, error) {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return []byte{}, fmt.Errorf("failed to transform TaskAcceptMsg to json payload")
+	}
+
+	return data, nil
+}
+
+// ======================= TaskAcceptMsg ======================================
+
+// ======================= TaskResultMsg ======================================
+type TaskResultMsg struct {
+	TaskID   TaskID `json:"task_id"`
+	ParentID TaskID `json:"parent_id,omitempty"`
+	Owner    UserID `json:"owner"`
+
+	FinishedTime time.Time `json:"finished_time"`
+	Result       any       `json:"result"` // can be url, data or context
+}
+
+func (msg *TaskResultMsg) GetType() MessageType {
+	return TASK_RESULT_MSG
+}
+
+func JsonToTaskResultMsg(j []byte) (PayloadStruct, error) {
+	var taskResultMsg TaskResultMsg
+	if err := json.Unmarshal(j, &taskResultMsg); err != nil {
+		return nil, fmt.Errorf("failed to transform json payload to TaskResultMsg")
+	}
+
+	return &taskResultMsg, nil
+}
+
+func TaskResultMsgToJson(msg TaskResultMsg) ([]byte, error) {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return []byte{}, fmt.Errorf("failed to transform TaskResultMsg to json payload")
+	}
+
+	return data, nil
+}
+
+// ======================= TaskResultMsg ======================================
+
 // ======================== public json transform method ========================
 // from json to payload structure
 type JsonToPayloadStruct func(j []byte) (PayloadStruct, error)
@@ -157,4 +226,6 @@ func init() {
 	RegisterPayloadStruct(TASK_BROADCAST_MSG, JsonToTaskBroadcastMsg)
 	RegisterPayloadStruct(TASK_REQUEST_MSG, JsonToTaskRequestMsg)
 	RegisterPayloadStruct(TASK_ASSIGN_MSG, JsonToTaskAssignMsg)
+	RegisterPayloadStruct(TASK_ACCEPT_MSG, JsonToTaskAcceptMsg)
+	RegisterPayloadStruct(TASK_RESULT_MSG, JsonToTaskResultMsg)
 }

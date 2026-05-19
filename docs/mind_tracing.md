@@ -21,7 +21,7 @@
    - [x] design inter-node payload
 5. TaskController 
 
-   - [ ] design task interface or structure
+   - [x] design task interface or structure
    - [ ] TaskWrapper
    - [ ] TaskDivider
    - [ ] TaskBoard

@@ -22,5 +22,8 @@
    1. add `TaskBroadcastMsg` under `api`
    2. add `TaskRequestMsg` 
    3. add `TaskAssignMsg`
+   4. add `TaskAcceptMsg`
+   5. add `TaskResultMsg`
 2. adding `TaskImage` under `api`
 
+3. start `routecontroller`
