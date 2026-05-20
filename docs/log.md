@@ -27,3 +27,9 @@
 2. adding `TaskImage` under `api`
 
 3. start `routecontroller`
+
+> 2026.05.20
+
+1. add `TaskControllerCache` under `taskcontroller`
+2. add `TaskStateManager` to manage DAG
+3. add `EventBus` to implement event-trigger
