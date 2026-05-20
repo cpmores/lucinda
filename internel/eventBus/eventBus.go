@@ -10,6 +10,7 @@ const EVENT_QUEUE_SIZE = 100
 
 type EventBus interface {
 	Subscribe(topic api.EventTopic) (chan api.Event, error)
+	Unsubscribe(topic api.EventTopic, ch chan api.Event) error
 	Publish(topic api.EventTopic, event api.Event) error
 }
 
@@ -22,6 +23,18 @@ func NewDefaultEventBus() *DefaultEventBus {
 	return &DefaultEventBus{
 		subscribers: make(map[api.EventTopic][]chan api.Event),
 	}
+}
+
+var (
+	globalEventBus *DefaultEventBus
+	globalOnce     sync.Once
+)
+
+func GetGlobalEventBus() *DefaultEventBus {
+	globalOnce.Do(func() {
+		globalEventBus = NewDefaultEventBus()
+	})
+	return globalEventBus
 }
 
 func (bus *DefaultEventBus) Subscribe(topic api.EventTopic) (chan api.Event, error) {
@@ -42,6 +55,23 @@ func (bus *DefaultEventBus) Publish(topic api.EventTopic, event api.Event) error
 			select {
 			case subscriber <- event:
 			default:
+			}
+		}
+	}
+
+	return nil
+}
+
+func (bus *DefaultEventBus) Unsubscribe(topic api.EventTopic, ch chan api.Event) error {
+	bus.Lock()
+	defer bus.Unlock()
+
+	if subscribers, ok := bus.subscribers[topic]; ok {
+		for i, subscriber := range subscribers {
+			if subscriber == ch {
+				bus.subscribers[topic] = append(subscribers[:i], subscribers[i+1:]...)
+				close(ch)
+				return nil
 			}
 		}
 	}

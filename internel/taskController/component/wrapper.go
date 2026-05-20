@@ -5,6 +5,7 @@ import (
 
 	"github.com/cpmores/lucinda/api/v1"
 	policy "github.com/cpmores/lucinda/internel/policy/taskController/controller"
+	"github.com/cpmores/lucinda/internel/task"
 )
 
 type Wrapper struct {
@@ -17,6 +18,6 @@ func NewTaskWrapper(policy policy.TaskWrapperPolicy) *Wrapper {
 	}
 }
 
-func (w *Wrapper) Wrap(ctx context.Context, chat api.ChatRequest, policy policy.TaskWrapperPolicy) (api.TaskID, error) {
-	return "", nil
+func (w *Wrapper) Wrap(ctx context.Context, taskPreSubmit task.TaskPreSubmit, policy policy.TaskWrapperPolicy) (api.TaskID, error) {
+	return w.policy.Wrap(ctx, taskPreSubmit)
 }

@@ -33,3 +33,4 @@
 1. add `TaskControllerCache` under `taskcontroller`
 2. add `TaskStateManager` to manage DAG
 3. add `EventBus` to implement event-trigger
+4. Finish `Submit` to `Wrapper`: need a `TaskStateManager`

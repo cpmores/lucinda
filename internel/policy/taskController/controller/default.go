@@ -13,8 +13,18 @@ type TaskControllerPolicy struct {
 	TaskBoardPolicy   TaskBoardPolicy
 }
 
+var defaultTaskControllerPolicy = TaskControllerPolicy{
+	TaskWrapperPolicy: &DefaultTaskWrapperPolicy{},
+	TaskDividerPolicy: &DefaultTaskDividerPolicy{},
+	TaskBoardPolicy:   &DefaultTaskBoardPolicy{},
+}
+
+func GetDefaultTaskControllerPolicy() TaskControllerPolicy {
+	return defaultTaskControllerPolicy
+}
+
 type TaskWrapperPolicy interface {
-	Wrap(ctx context.Context, chat api.ChatRequest) (api.TaskID, error)
+	Wrap(ctx context.Context, task task.TaskPreSubmit) (api.TaskID, error)
 }
 
 type TaskDividerPolicy interface {
@@ -29,7 +39,7 @@ type TaskBoardPolicy interface {
 type DefaultTaskWrapperPolicy struct {
 }
 
-func (p *DefaultTaskWrapperPolicy) Wrap(ctx context.Context, chat api.ChatRequest) (api.TaskID, error) {
+func (p *DefaultTaskWrapperPolicy) Wrap(ctx context.Context, task task.TaskPreSubmit) (api.TaskID, error) {
 	return "", nil
 }
 

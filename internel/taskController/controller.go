@@ -2,6 +2,9 @@ package taskcontroller
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"sync"
 
 	"github.com/cpmores/lucinda/api/v1"
 	eventbus "github.com/cpmores/lucinda/internel/eventBus"
@@ -13,16 +16,13 @@ import (
 // ======================== Task Components Interfacs ==============================
 type TaskController interface {
 	// pipeline is a task processing flow
-	PushRequest(ctx context.Context, chat api.ChatRequest) error
+	Submit(ctx context.Context, chat api.ChatRequest) error
 	StartPipeline(ctx context.Context) error
 	TaskWorker
-	TaskWrapper
-	TaskDivider
-	TaskBoard
 }
 
 type TaskWrapper interface {
-	Wrap(ctx context.Context, chat api.ChatRequest, policy policy.TaskWrapperPolicy) (api.TaskID, error)
+	Wrap(ctx context.Context, taskPreSubmit task.TaskPreSubmit, policy policy.TaskWrapperPolicy) (api.TaskID, error)
 }
 
 type TaskDivider interface {
@@ -35,10 +35,10 @@ type TaskBoard interface {
 }
 
 type TaskWorker interface {
-	StartWrapper(ctx context.Context) error
-	StartDivider(ctx context.Context) error
-	StartPublisher(ctx context.Context) error
-	StartInterviewer(ctx context.Context) error
+	startWrapper(ctx context.Context) error
+	startDivider(ctx context.Context) error
+	startPublisher(ctx context.Context) error
+	startInterviewer(ctx context.Context) error
 }
 
 // ======================== Task Components Interfacs ==============================
@@ -46,23 +46,93 @@ type TaskWorker interface {
 // ======================== Task Controller Implementation =========================
 type Controller struct {
 	Policy   policy.TaskControllerPolicy
-	EventBus *eventbus.EventBus
+	EventBus eventbus.EventBus
 
-	worker  TaskWorker
-	wrapper TaskWrapper
-	divider TaskDivider
-	board   TaskBoard
+	Wrapper TaskWrapper
+	Divider TaskDivider
+	Board   TaskBoard
 }
 
-func NewTaskController(policy policy.TaskControllerPolicy, eventbus *eventbus.EventBus) *Controller {
+func (c *Controller) Submit(ctx context.Context, chat api.ChatRequest) (api.TaskID, error) {
+	// TODO: GENERATE UNIQUE TASK ID
+	taskID := api.TaskID("test")
+	event := task.GenerateTaskPreSumbitEvent(taskID, chat)
+	return taskID, c.EventBus.Publish(api.TASK_SUBMITTED, event)
+}
+
+func (c *Controller) StartPipeline(ctx context.Context) error {
+	if err := c.startWrapper(ctx); err != nil {
+		return fmt.Errorf("start wrapper: %w", err)
+	}
+
+	if err := c.startDivider(ctx); err != nil {
+		return fmt.Errorf("start divider: %w", err)
+	}
+
+	if err := c.startPublisher(ctx); err != nil {
+		return fmt.Errorf("start publisher: %w", err)
+	}
+
+	if err := c.startInterviewer(ctx); err != nil {
+		return fmt.Errorf("start interviewer: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Controller) startWrapper(ctx context.Context) error {
+	submitEventChan, err := c.EventBus.Subscribe(api.TASK_SUBMITTED)
+	if err != nil {
+		return fmt.Errorf("subscribe event: %w", err)
+	}
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event := <-submitEventChan:
+				if taskPreSubmit, ok := event.Data.(task.TaskPreSubmit); ok {
+					taskID, err := c.Wrapper.Wrap(ctx, taskPreSubmit, c.Policy.TaskWrapperPolicy)
+					if err != nil {
+						log.Printf("wrap task error: %v\n", err)
+						continue
+					}
+					log.Printf("task wrapped with ID: %s\n", taskID)
+				}
+			}
+		}
+	}()
+	return nil
+}
+
+func NewTaskController(policy policy.TaskControllerPolicy, eventbus eventbus.EventBus) *Controller {
 	controller := &Controller{
 		Policy:   policy,
 		EventBus: eventbus,
 	}
 
-	controller.worker = component.NewTaskWorker()
-	controller.wrapper = component.NewTaskWrapper(policy.TaskWrapperPolicy)
-	controller.divider = component.NewTaskDivider(policy.TaskDividerPolicy)
-	controller.board = component.NewTaskBoard(policy.TaskBoardPolicy)
+	controller.Wrapper = component.NewTaskWrapper(policy.TaskWrapperPolicy)
+	controller.Divider = component.NewTaskDivider(policy.TaskDividerPolicy)
+	controller.Board = component.NewTaskBoard(policy.TaskBoardPolicy)
+
 	return controller
+}
+
+var (
+	globalTaskController *Controller
+	globalOnce           sync.Once
+)
+
+func GetGlobalTaskController() (*Controller, error) {
+	var err error
+	globalOnce.Do(func() {
+		globalTaskController = NewTaskController(policy.GetDefaultTaskControllerPolicy(), eventbus.GetGlobalEventBus())
+		if err = globalTaskController.StartPipeline(context.Background()); err != nil {
+			err = fmt.Errorf("start task pipeline: %w", err)
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	return globalTaskController, nil
 }

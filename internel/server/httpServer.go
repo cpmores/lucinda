@@ -7,9 +7,12 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/cpmores/lucinda/api/v1"
+	eventbus "github.com/cpmores/lucinda/internel/eventBus"
 	"github.com/cpmores/lucinda/internel/provider"
+	taskcontroller "github.com/cpmores/lucinda/internel/taskController"
 	"github.com/gorilla/mux"
 	"github.com/spf13/viper"
 )
@@ -45,6 +48,56 @@ func newHttpServer(config *viper.Viper) (*HttpServer, error) {
 func (hs *HttpServer) setupRouters() {
 	hs.router.HandleFunc("/ollama", ollamaChatHandler)
 	hs.router.HandleFunc("/healthz", healthzHandler)
+	hs.router.HandleFunc("/chat", chatHandlerSynchronous)
+}
+
+func chatHandlerSynchronous(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+	defer cancel()
+
+	// 1. 解析并提交
+	reqContent, _ := io.ReadAll(r.Body)
+	defer r.Body.Close()
+	chatReq := api.ChatRequest{
+		Model:    "gemma3",
+		Messages: []api.Message{{Role: "user", Content: string(reqContent)}},
+	}
+
+	taskController, err := taskcontroller.GetGlobalTaskController()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 提交任务到 TaskController 的 Pipeline 中处理
+	taskID, err := taskController.Submit(ctx, chatReq)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 2. 向 EventBus 订阅该任务的最终结果主题
+	eventBus := eventbus.GetGlobalEventBus()
+	// TODO: CREATE UNIQUE TASK TOPIC
+	resultTopic := api.EventTopic(fmt.Sprintf("%s.%s", api.TASK_RESULT, taskID))
+	resultChan, err := eventBus.Subscribe(resultTopic)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer eventBus.Unsubscribe(resultTopic, resultChan)
+
+	// 3. 同步阻塞等待对应的单条结果
+	select {
+	case <-ctx.Done():
+		http.Error(w, "Task Timeout or Client Cancelled", http.StatusRequestTimeout)
+	case event := <-resultChan:
+		if chatResp, ok := event.Data.(api.ChatResponse); ok {
+			w.Write([]byte(chatResp.Message.Content))
+		} else if errPayload, ok := event.Data.(error); ok {
+			http.Error(w, errPayload.Error(), http.StatusInternalServerError)
+		}
+	}
 }
 
 func ollamaChatHandler(w http.ResponseWriter, r *http.Request) {
