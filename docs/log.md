@@ -34,3 +34,9 @@
 2. add `TaskStateManager` to manage DAG
 3. add `EventBus` to implement event-trigger
 4. Finish `Submit` to `Wrapper`: need a `TaskStateManager`
+
+> 2026.05.26
+
+1. reconstruct this project architecture
+2. start to write from bottom to top
+   1. writing eventbus now

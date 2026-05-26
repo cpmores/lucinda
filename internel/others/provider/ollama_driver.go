@@ -11,7 +11,6 @@ import (
 	"time"
 
 	api "github.com/cpmores/lucinda/api/v1"
-	"github.com/spf13/viper"
 )
 
 type OllamaProvider struct {
@@ -31,6 +30,22 @@ func defaultOllamaProvider() *OllamaProvider {
 		},
 	}
 }
+
+func NewOllamaProvider(config ProviderConfig) (*OllamaProvider, error) {
+	if config.Host == "" || config.Port == 0 {
+		return nil, fmt.Errorf("invalid configuration for Ollama provider: host and port must be specified")
+	}
+
+	baseAddress := fmt.Sprintf("http://%s:%d", config.Host, config.Port)
+	return &OllamaProvider{
+		Id:      config.ID,
+		BaseURL: baseAddress,
+		HTTPClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}, nil
+}
+
 func (prov *OllamaProvider) GetId() string {
 	return prov.Id
 }
@@ -162,8 +177,8 @@ func (prov *OllamaProvider) CheckHealth() error {
 	return nil
 }
 
-func (f *OllamaProviderFactory) Create(config *viper.Viper) (AIProvider, error) {
-	return defaultOllamaProvider(), nil
+func (f *OllamaProviderFactory) Create(config ProviderConfig) (AIProvider, error) {
+	return NewOllamaProvider(config)
 }
 
 func (f *OllamaProviderFactory) CreateDefault() (AIProvider, error) {

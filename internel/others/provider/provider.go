@@ -2,11 +2,17 @@ package provider
 
 import (
 	"context"
-	"fmt"
 
 	api "github.com/cpmores/lucinda/api/v1"
-	"github.com/spf13/viper"
 )
+
+type ProviderConfig struct {
+	ID     string   `mapstructure:"id"`
+	Type   string   `mapstructure:"type"`
+	Host   string   `mapstructure:"host"`
+	Port   int      `mapstructure:"port"`
+	Models []string `mapstructure:"models"`
+}
 
 var Providers map[string]AIProvider = make(map[string]AIProvider)
 
@@ -23,32 +29,10 @@ type AIProvider interface {
 var AIProviderFactories map[string]AIProviderFactory = make(map[string]AIProviderFactory)
 
 type AIProviderFactory interface {
-	Create(config *viper.Viper) (AIProvider, error)
+	Create(config ProviderConfig) (AIProvider, error)
 	CreateDefault() (AIProvider, error)
 }
 
 func RegisterAIProviderFactory(platform string, factory AIProviderFactory) {
 	AIProviderFactories[platform] = factory
-}
-
-func CreateProvider(platform string) (string, error) {
-	factory, ok := AIProviderFactories[platform]
-	if !ok {
-		return "", fmt.Errorf("%s driver not loaded", platform)
-	}
-
-	provider, err := factory.CreateDefault()
-	if err != nil {
-		return "", err
-	}
-
-	// check provider health
-	err = provider.CheckHealth()
-	if err != nil {
-		return "", err
-	}
-
-	id := provider.GetId()
-	ProviderController.UpdateProvider(id, provider)
-	return id, nil
 }

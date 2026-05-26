@@ -5,6 +5,7 @@ import (
 
 	"github.com/cpmores/lucinda/api/v1"
 	"github.com/cpmores/lucinda/internel/task"
+	"github.com/spf13/viper"
 )
 
 type TaskControllerPolicy struct {
@@ -17,6 +18,12 @@ var defaultTaskControllerPolicy = TaskControllerPolicy{
 	TaskWrapperPolicy: &DefaultTaskWrapperPolicy{},
 	TaskDividerPolicy: &DefaultTaskDividerPolicy{},
 	TaskBoardPolicy:   &DefaultTaskBoardPolicy{},
+}
+
+func NewTaskControllerPolicy(config *viper.Viper) TaskControllerPolicy {
+	// TODO: parse policy from config
+	_ = config.GetStringMap("task_controller.policy")
+	return defaultTaskControllerPolicy
 }
 
 func GetDefaultTaskControllerPolicy() TaskControllerPolicy {

@@ -32,14 +32,14 @@ type HardwareMonitor interface {
 	GetHardwareStatus() api.HardwareStatus
 }
 
-type defaultMonitor struct{}
+type defaultMonitor struct {
+	ProviderController provider.Controller
+}
 type TaskRuntimeStatus struct {
 	CurrentTaskID string `json:"current_task_id"`
 	QueueDepth    int64  `json:"queue_depth"`
 	ForecastTime  int64  `json:"forecast_time"` // in milliseconds
 }
-
-var Monitor = &defaultMonitor{}
 
 func (monitor *defaultMonitor) GetNodeStatus() api.NodeStatus {
 	// Implementation for getting node status
@@ -52,7 +52,7 @@ func (monitor *defaultMonitor) GetNodeProviderStatus() api.NodeProviderStatus {
 }
 
 func (monitor *defaultMonitor) GetProviders() (map[string]api.ProviderStatus, error) {
-	ids, statuses, err := provider.ProviderController.GetStatus()
+	ids, statuses, err := monitor.ProviderController.GetStatus()
 	if err != nil {
 		return nil, err
 	}

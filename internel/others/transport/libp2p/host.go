@@ -118,7 +118,7 @@ func (p2p *Libp2pTransporter) Stop() error {
 }
 
 func (p2p *Libp2pTransporter) ID() api.NodeID {
-	return api.NodeID(p2p.Host.ID())
+	return api.NodeID(p2p.Host.ID().String())
 }
 
 func (p2p *Libp2pTransporter) Dial(ctx context.Context, targetAddr string) error {

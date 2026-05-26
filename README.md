@@ -13,7 +13,9 @@ Unlike traditional operating systems that manage CPU/RAM for processes, or Kuber
 
 ## Architecture && Components
 
-![](./docs/photos/Lucinda_Overall.drawio.png)
+![](./docs/photos/Lucinda-poster.drawio.png)
+
+> Need to update
 
 ### Server
 

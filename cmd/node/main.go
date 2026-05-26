@@ -2,20 +2,24 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
+	eventbus "github.com/cpmores/lucinda/internel/eventBus"
 	"github.com/cpmores/lucinda/internel/provider"
 	server "github.com/cpmores/lucinda/internel/server"
+	taskcontroller "github.com/cpmores/lucinda/internel/taskController"
 	"github.com/cpmores/lucinda/internel/transport"
 	"github.com/spf13/viper"
+	"golang.org/x/sync/errgroup"
 
 	// libp2p transport init
 	_ "github.com/cpmores/lucinda/internel/transport/libp2p"
 )
 
 func setupEnvironment() error {
-
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("../../configs/server")
@@ -24,54 +28,46 @@ func setupEnvironment() error {
 	return viper.ReadInConfig()
 }
 
-func setupProviders() error {
-	providerName, err := provider.CreateProvider("ollama")
-	if err != nil {
-		return err
-	}
-
-	log.Printf("Created provider %s successfully", providerName)
-	return nil
-}
-
-func setupNodes() error {
-	transport, err := transport.CreateTransporter("libp2p")
-	if err != nil {
-		return err
-	}
-
-	if err := transport.Start(context.Background()); err != nil {
-		return fmt.Errorf("failed to start libp2p transporter: %s", err.Error())
-	}
-
-	return nil
-}
-
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-
 	err := setupEnvironment()
 	if err != nil {
 		log.Printf("Environment setting up failed: %s", err.Error())
 		return
 	}
 
-	err = setupProviders()
+	// context
+	baseCtx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	g, gCtx := errgroup.WithContext(baseCtx)
+
+	// setup eventbus
+	eventBus := eventbus.NewDefaultEventBus(gCtx)
+	// setup providerController and load providers
+	_, err = provider.NewProviderController(gCtx, eventBus, viper.GetViper())
 	if err != nil {
-		log.Printf("Providers setting up failed: %s", err.Error())
+		log.Printf("Failed to create provider controller: %s", err.Error())
 		return
 	}
 
-	err = setupNodes()
-	if err != nil {
-		log.Printf("Nodes setting up failed: %s", err.Error())
+	// start postman
+	g.Go(func() error {
+		return transport.StartNodePostman(gCtx, eventBus, viper.GetViper())
+	})
+	// start task controller
+	g.Go(func() error {
+		return taskcontroller.StartTaskController(gCtx, eventBus, viper.GetViper())
+	})
+	// start server
+	g.Go(func() error {
+		return server.StartServer(gCtx, server.HTTP, eventBus, viper.GetViper())
+	})
+
+	log.Println("Lucinda node started successfully. Press Ctrl+C to stop.")
+	if err := g.Wait(); err != nil {
+		log.Printf("Lucinda node stopped with error: %s", err.Error())
+		return
 	}
 
-	httpServer, err := server.CreateServer(server.HTTP, viper.GetViper())
-	if err != nil {
-		log.Fatal("Something wrong with HTTP server create")
-	}
-	log.Print("HTTPServer Created Successfully")
-
-	log.Fatal(httpServer.Start())
+	log.Println("Lucinda node shutdown cleanly.")
 }

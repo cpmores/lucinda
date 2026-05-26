@@ -3,8 +3,10 @@ package transport
 import (
 	"context"
 	"fmt"
+	"log"
 
 	api "github.com/cpmores/lucinda/api/v1"
+	eventbus "github.com/cpmores/lucinda/internel/eventBus"
 	"github.com/spf13/viper"
 )
 
@@ -43,8 +45,52 @@ func CreateTransporter(name string) (Transporter, error) {
 
 // transport message writer and reader
 type NodePostman interface {
-	AddTransporter(transpoter Transporter) error
-	StartPumping(ctx context.Context) error                                     // output inter-node operations
+	Start(ctx context.Context) error // output inter-node operations
+	ListenAndServe(ctx context.Context) error
 	SendMsg(ctx context.Context, nodeID api.NodeID, msg *api.NodeMessage) error // send a message to a node
 	PublishMsg(ctx context.Context, msg *api.NodeMessage) error                 // publish a message to all the neighbours
+}
+
+type Postman struct {
+	Transporter Transporter
+	EventBus    eventbus.EventBus
+}
+
+func (p *Postman) Start(ctx context.Context) error {
+	if err := p.Transporter.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start transporter: %w", err)
+	}
+
+	log.Printf("Node Postman created with transporter: %s", p.Transporter.ID())
+	return p.ListenAndServe(ctx)
+}
+
+// ListenAndServe listen for incoming messages and handle
+func (p *Postman) ListenAndServe(ctx context.Context) error {
+	// TODO
+	return nil
+}
+
+func (p *Postman) SendMsg(ctx context.Context, nodeID api.NodeID, msg *api.NodeMessage) error {
+	return p.Transporter.Send(ctx, nodeID, msg)
+}
+
+func (p *Postman) PublishMsg(ctx context.Context, msg *api.NodeMessage) error {
+	return p.Transporter.Publish(ctx, msg)
+}
+
+func StartNodePostman(ctx context.Context, eventBus eventbus.EventBus, config *viper.Viper) error {
+	// create transporter
+	// TOOD: support multiple transporters
+	transporter, err := CreateTransporter("libp2p")
+	if err != nil {
+		return fmt.Errorf("failed to create transporter: %w", err)
+	}
+
+	postman := &Postman{
+		Transporter: transporter,
+		EventBus:    eventBus,
+	}
+
+	return postman.Start(ctx)
 }

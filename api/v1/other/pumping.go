@@ -223,6 +223,7 @@ func RegisterPayloadStruct(t MessageType, f JsonToPayloadStruct) {
 }
 
 func init() {
+	PumpingFactory = make(map[MessageType]JsonToPayloadStruct)
 	RegisterPayloadStruct(TASK_BROADCAST_MSG, JsonToTaskBroadcastMsg)
 	RegisterPayloadStruct(TASK_REQUEST_MSG, JsonToTaskRequestMsg)
 	RegisterPayloadStruct(TASK_ASSIGN_MSG, JsonToTaskAssignMsg)

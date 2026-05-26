@@ -1,0 +1,33 @@
+// lucinda/api/v1/event/event.go
+// api event provide event struct and event type definition
+// transferred between eventbus and other components
+package api_event
+
+// EventID represents the unique identifier for an event in every node
+type EventID int64
+
+// EventType represents the type of an event
+// which can be usef to identify the event and determine how to handle it
+type EventType string
+
+const (
+	// User Events
+	UserRequestReceived EventType = "UserRequestReceived"
+	UserResponseSent    EventType = "UserResponseSent"
+	// Task Events (Finished)
+	TaskCreated  EventType = "TaskCreated"
+	TaskPlanned  EventType = "TaskPlanned"
+	TaskExecuted EventType = "TaskExecuted"
+	TaskReduced  EventType = "TaskReduced"
+
+	// TODO: add more event types for other components
+	// System Events
+	// other Events
+)
+
+// Event represents an event in the system
+type Event struct {
+	ID   EventID   `json:"id"`   // Unique identifier for the event
+	Type EventType `json:"type"` // Type of the event
+	Data any       `json:"data"` // Payload of the event, can be any type
+}

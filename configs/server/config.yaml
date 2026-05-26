@@ -1,9 +1,18 @@
 # configs/server/config.yaml
-model: "gemma3"
-provider:
-  type: "ollama"
-  host: "localhost"
-  port: 11434
+provider_controller:
+  providers:
+      - id:   "ollama"
+        type: "ollama"
+        host: "localhost"
+        port: 11434
+        models:
+        - "gemma3"
+
+task_controller:
+  policy:
+    task_wrapper: "default"
+    task_divider: "default"
+    task_board:   "default"
 
 http:
   port: 8080

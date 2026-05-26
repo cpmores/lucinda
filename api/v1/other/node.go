@@ -3,6 +3,11 @@ package api
 
 // Transporter
 type NodeID string
+
+func (id NodeID) String() string {
+	return string(id)
+}
+
 type NodeMessage struct {
 	ProtocolID string `json:"protocol_id"`
 	Payload    []byte `json:"payload"`

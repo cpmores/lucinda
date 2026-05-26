@@ -4,19 +4,18 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sync"
 
 	"github.com/cpmores/lucinda/api/v1"
 	eventbus "github.com/cpmores/lucinda/internel/eventBus"
 	policy "github.com/cpmores/lucinda/internel/policy/taskController/controller"
 	"github.com/cpmores/lucinda/internel/task"
 	"github.com/cpmores/lucinda/internel/taskController/component"
+	"github.com/spf13/viper"
 )
 
 // ======================== Task Components Interfacs ==============================
 type TaskController interface {
 	// pipeline is a task processing flow
-	Submit(ctx context.Context, chat api.ChatRequest) error
 	StartPipeline(ctx context.Context) error
 	TaskWorker
 }
@@ -51,13 +50,6 @@ type Controller struct {
 	Wrapper TaskWrapper
 	Divider TaskDivider
 	Board   TaskBoard
-}
-
-func (c *Controller) Submit(ctx context.Context, chat api.ChatRequest) (api.TaskID, error) {
-	// TODO: GENERATE UNIQUE TASK ID
-	taskID := api.TaskID("test")
-	event := task.GenerateTaskPreSumbitEvent(taskID, chat)
-	return taskID, c.EventBus.Publish(api.TASK_SUBMITTED, event)
 }
 
 func (c *Controller) StartPipeline(ctx context.Context) error {
@@ -105,6 +97,18 @@ func (c *Controller) startWrapper(ctx context.Context) error {
 	return nil
 }
 
+func (c *Controller) startDivider(ctx context.Context) error {
+	return nil
+}
+
+func (c *Controller) startPublisher(ctx context.Context) error {
+	return nil
+}
+
+func (c *Controller) startInterviewer(ctx context.Context) error {
+	return nil
+}
+
 func NewTaskController(policy policy.TaskControllerPolicy, eventbus eventbus.EventBus) *Controller {
 	controller := &Controller{
 		Policy:   policy,
@@ -118,21 +122,8 @@ func NewTaskController(policy policy.TaskControllerPolicy, eventbus eventbus.Eve
 	return controller
 }
 
-var (
-	globalTaskController *Controller
-	globalOnce           sync.Once
-)
-
-func GetGlobalTaskController() (*Controller, error) {
-	var err error
-	globalOnce.Do(func() {
-		globalTaskController = NewTaskController(policy.GetDefaultTaskControllerPolicy(), eventbus.GetGlobalEventBus())
-		if err = globalTaskController.StartPipeline(context.Background()); err != nil {
-			err = fmt.Errorf("start task pipeline: %w", err)
-		}
-	})
-	if err != nil {
-		return nil, err
-	}
-	return globalTaskController, nil
+func StartTaskController(ctx context.Context, eventBus eventbus.EventBus, config *viper.Viper) error {
+	policy := policy.NewTaskControllerPolicy(config)
+	controller := NewTaskController(policy, eventBus)
+	return controller.StartPipeline(ctx)
 }
