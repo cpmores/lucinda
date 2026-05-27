@@ -13,7 +13,7 @@ Unlike traditional operating systems that manage CPU/RAM for processes, or Kuber
 
 ## Architecture && Components
 
-![](./docs/photos/Lucinda-poster.drawio.png)
+!["Lucinda Arch"](./docs/photos/Lucinda-poster.drawio.png)
 
 > Need to update
 
@@ -27,7 +27,7 @@ Trace **nodes' status**, **providers’ status** and **tasks’ status** providi
 
 ### TaskController
 
-`TaskController` manages **task wrapping**, **task dividing**, **task routing** and **task reducing**, it receives `ChatRequest` and returns `ChatResponse` to *Server* 
+`TaskController` manages **task wrapping**, **task dividing**, **task routing** and **task reducing**, it receives `ChatRequest` and returns `ChatResponse` to *Server*
 
 + **TaskWrapper**: wrap `ChatRequest` into `Task` , labeling this task.
 + **TaskDivider**: divide `Task` into `SubTask`, then build an `TaskPlan`
@@ -40,7 +40,7 @@ Trace **nodes' status**, **providers’ status** and **tasks’ status** providi
 ### TaskExecutor
 
 + **Scheduler**: receive `SubTask` and **rank** according to **urgency** and **forcasted time**.
-+ **Executor**: Generate `Result` back to Boss Node. 
++ **Executor**: Generate `Result` back to Boss Node.
 
 ### Transport
 
@@ -56,8 +56,8 @@ This layer deals with basic connections between nodes.
 
 ### Toolbox
 
-**Toolbox** provides some safe but additional operations for *Provider*. 
+**Toolbox** provides some safe but additional operations for *Provider*.
 
 ### ContextManager
 
-**ContextManager** manages context for *Provider*. 
+**ContextManager** manages context for *Provider*.
