@@ -6,13 +6,7 @@ Existing LLM agent frameworks excel at macro-logic routing but fail to perceive 
 
 ## 1. Introdcution
 
-// ai agent 的快速发展， 越来越多的用户开始使用 AI agent 作为自己的生产力工具。
-
-// 就目前而言，很多人选择在云端部署使用这些 models，可能有多种原因，主要有：1. 云服务商提供简单便捷的服务，2. 本地设备无法提供稳定的最小所需资源。
-
 The rapid advancement of Artificial Intelligence (AI) agents has seamlessly integrated them into mainstream productivity workflows, serving as indispensable tools for daily oeprations. Currently, a vast majority of users choose for cloud-based deployment. This trend is driven by sort of reasons, but mainly two: first, cloud service providers offer turnkey, plug-and-play accessibility, which seems attractive for primary users; second, standard localized hardware typically fails to provision the stable, minimum required compute and memory resources to sustain heavy localized model initialization.
-
-// 这种 agent 服务模式对于用户来说虽然非常便捷，但是同时也产生许多无法掩盖的问题。1. 隐私，2. 实时性，3. 自定义程度低 （举点例子）
 
 However, while convenient, this absolute reliance on centralized cloud models induces servere and unignorable drawbacks:
 
@@ -20,17 +14,10 @@ However, while convenient, this absolute reliance on centralized cloud models in
 + **Degraded Real-Time Responsiveness**: Constant cloud round-trips introduce high network demands and  unignorable latency, bottlenecking interactive application efficiency.
 + **Low Customization Freedom**: Centrialized APIs restrict users to rigid, immutable configurations, preventing fine-grained parameter tuning or local context adaption.
 
-// 市面上现有的框架：
-
-1. 纯应用层 Agent 编排框架，LangChain，AutoGen 等，不会感知底层硬件，如果将其放在边缘设备上，它们只会盲目地创建任务、阻塞等待，而不理会 CPU/vRAM 等资源分配问题
-2. 底层大模型推理引擎比如 ollama，vLLM 等，主要以单机静态服务为主，缺乏上层的复杂任务状态管理和生命周期调度
-
 To resolve these limitations, shifting agent intelligence toward the edge is highly desirable, yet existing software infrastructures exhibit a severe architectural disconnect.
 
 + **Pure Application-Layer Framework** (e.g., LangChain, AutoGen) : Focus heavily on macro abstraction routing logic while remaining completely blind to the underlying physical substrate. When deployed on constrained edge  networks, they blindly spawn tasks and trigger blocking waits without assessing actual CPU or vRAM consumption.
 + **Local Inference Engines** (e.g., Ollama, vLLM) : Primarily act as static, single-node endpoint servers. They lack macro distributed task state management, lifecycle tracking, and collaborative scheduling capabilities across peer nodes.
-
-// 而 Lucinda 为解决该问题而生，同时也是为未来能力更强、资源消耗更少的 agent 提供一个 General 的任务编排平台。
 
 Lucinda is specially designed to eliminate this gap. It serves as generalized, resource-aware task orchestration runtime platform optimized to empoweer future resource-efficient, highly capable localized agents within a collaborative network.
 
@@ -38,16 +25,7 @@ Lucinda is specially designed to eliminate this gap. It serves as generalized, r
 
 ![](./photos/Lucinda-poster.png)
 
-// Lucinda 设备从用户处获取 Request, 并在 TaskWrapper 处包装成 Task 对象进行 Task 处理流程。Task Workflow 过程被分布在云-端网络之中，通过 TaskBoard 将其与单机解耦，使整个边缘网络加入到任务处理之中。在经过 “Plan-Execute-Reduce” 流水线后，系统将结果返回给用户，完成一个任务流程。
-
 The basic workflow of Lucinda initiateds when a device intercepts a user ChatRequest, which the gateway immediately encapsulates into a structured Task object via the TaskWrapper. Instead of being confined to a standalone machine, the execution topology is distributed asynchronously across the edge-cloud network mesh. By utilizing a shared TaskBoard, single-node decoupling is accomplished, effectively recruiting the computational power of the entire local neighbourhood into the task procssing pool. Following the execution of the “Plan-Execute-Reduce” pipeline, the final aggregated artifact is streamed back to the user to complete the operational cycle.
-
-// Lucinda 系统主要分为四层结构：
-
-1. Server 与 TaskWrapper ：接收用户请求并转换为 Task
-2. Task Workflow Layer: Task 处理流水线，面向整个云-端网络
-3. Task Management Layer：维护本节点的 Task 状态、Task 调度以及 Task 节点间传输
-4. Infrastruction Layer: Eventbus, Transport, HardwareMonitor等基础组件，以及 agent 底层相关，如 ProviderController，Toolbox，ContextManager 等，提供云服务商服务接口
 
 The architecture of Lucinda is strictly separated into four highly cohesive layers combined with specialized dynamic mechanisms:
 
@@ -74,24 +52,49 @@ To sustain horizontal scalability across heterogeneous edge-cloud meshes, the Pr
 
 To isolate resource-constrained host machines from synchronous thread starvation during prolonged LLM inference iterations, Lucinda features native asynchronous task tracking. The TaskStateManager maintains the DAG for the task plan, tracking the structural dependencies and real-time execution states of every sub-task node. Instead of blocking the runtime while waiting for upstream tokens to generate, it relies on non-blocking event notifications emitted by the EventBus. When an execution dependency is cleared, the state machine reactively advances the DAG cursor, triggering the next execution phase via lightweight Go channels. This ensures that the global state remains deterministic and fully decoupled from the physical execution lifecycles of individual workers.
 
- // TaskBoard with a Publish-Lease Protocol: Real-time Task Interview
-
-//  Service Module: Multi-Attribute Adaptive Dispatching Framework
-
-//  Muti-Server and Provider Driver Support
-
-//  Native Native Non-Blocking Asynchronous Task
-
 ## 3. Evaluation and Case Study
 
 ### A. Qualitative Framework Comparison
 
+| Metric Dimension         | LangChain/AutoGen             | Ollama / vLLM                | Ray / KubeEdge                   | Lucinda (Ours)                        |
+| ------------------------ | ----------------------------- | ---------------------------- | -------------------------------- | ------------------------------------- |
+| Hardware Awareness       | No Perception (cloud-centric) | Static Single-Node Only      | Strong Telemetry (cluster nodes) | Dynamic Real-Time Telemetry           |
+| Distributed Scheduling   | Standalone Memory Routing     | No Multi-Server Coordination | Master-Worker Cluster Topology   | Decentrialized Publish-Lease DAG      |
+| Stream-Control Isolation | Blind Logic and Data Coupling | Raw token Stream Capture     | Generic Data Packet Handling     | Internal Channel and EventBus Split   |
+| Agent-Centric Pipeline   | Supported (Macro Flow Graph)  | Standard Inference Endpoint  | Generic Container/Task Compute   | Native “Plan-Execute-Reduce” Workflow |
+
+As synthesized in the comparative matrix above, existing solutions fail to bridge the operational boundary between high-level agent semantic logic and runtime hardware topologies. Traditional orchestration libraries like **LangChain** and **AutoGen** focus heavily on abstraction flows while remaining blind to physical substrates. Standalone inference daemons like **Ollama** lack distributed coordination, and traditional systems like **Ray** or **KubeEdge** are thoroughly optimized for generic workloads but lack understanding of LLM-specific streaming structures. Conversely, **Lucinda** unifies agent-centric pipelining with systems-level resource awareness, establishing an optimized, resilient, and hardware-transparent runtime.
+
 ### B. Heterogeneous Pipeline Coordination and Fault-Tolerance Case Study
 
+To demonstrate system resilience, we evaluate a multi-node edge topology processing a complex request: *"Analyze a target data structure and generate an optimized LLM evaluation report."* The setup contains Node 1 (client ingress), Node 2 (vRAM-rich worker running an Ollama Gemma-3 driver), and Node 3 (CPU-dense worker).
+
 1. Asynchronous DAG Generation
+
+Node 1's `TaskWrapper` ingests the request and immediately returns a tracking ID asynchronously to avoid thread blocking. Simultaneously, the `TaskPlanner` decomposes the macro-task into a 3-stage Directed Acyclic Graph (DAG) (*Parse* $\rightarrow$ *Inference* $\rightarrow$ *Reduce*) and publishes it onto the shared `TaskBoard` in a *Pending* state.
+
 2. Capability CV and Task Interview
+
+Nodes continuously update their real-time hardware metrics and plugged modules as a "Capability CV" inside the global `ComponentRegistry`. When sub-tasks are broadcast, the `TaskScheduler` runs a "Task Interview," dynamically matching task hardware and plugin demands against the candidate CVs in the network.
+
 3. Polymorphic Dispatch and Distributed Leasing
+
+Based on the interview, Node 3 leases the CPU-bound *Parse* phase, while Node 2 claims the vRAM-heavy *Inference* stage. The `TaskBoard` updates their states to *Running*, guarded by a heartbeat-driven Time-To-Live (TTL) lease window to prevent deadlocks.
+
 4. Asynchronous Stream Ingestion
+
+Node 3 processes the parsed data tokens and pipelines them directly to Node 2 via low-level `Transport` channels. This high-frequency raw data stream is digested entirely within private localized channels, completely bypassing the global `EventBus` to preserve control-plane network bandwidth.
+
 5. Dynamic Fault Recovery
 
+Mid-way, Node 2 encounters sudden hardware starvation. Its `HardwareMonitor` alerts the `EventBus`, causing it to miss its heartbeat window. The `TaskBoard` silently revokes the lease, reverting the *Inference* sub-task to *Pending*. Node 1's `ProviderController` instantly re-interviews the task and transparently re-routes the payload to a cloud API instead, allowing Node 3 to safely execute the final *Reduce* step without application downtime.
+
 ## 4. Implementation &  Future Work
+
+The macro architectural layout, module interfaces, and component boundaries of Lucinda are now fully established. To ensure high-concurrency capability, microkernel decoupling, and a low runtime overhead, our engineering implementation is strategically architected around a unified Go ecosystem:
+
+- **Core Orchestrator and Event System:** The central state machine, lock-free EventBus, distributed TaskBoard, and component registries are actively developed using **Go**. This choice directly leverages Go's native goroutine efficiency and low-overhead memory footprint to sustain thousands of concurrent agent tasks without thread starvation.
+- **Local Inference and Model Drivers:** The local model driver layer utilizes Go-based drivers interacting with localized **Ollama (Gemma 3)** endpoints. High-frequency streaming tokens are encapsulated and processed within isolated internal channels to ensure low-latency token ingestion.
+- **Decentralized Network Topology:** The underlying peer-to-peer Transport layer is structured on top of the **libp2p** protocol stack. This handles secure multi-server node discovery, dynamic NAT traversal, and decentralized telemetry broadcasting across volatile edge networks.
+
+Our immediate future work focuses on executing comprehensive empirical evaluations to stress-test the runtime boundaries of Lucinda. We plan to deploy the framework across localized heterogeneous edge clusters running edge-optimized models. The benchmarking suite will quantitatively evaluate task scheduling latencies, the control-overhead of the Capability CV interview process, network throughput stability during asynchronous stream ingestion, and the self-healing recovery time during simulated node dropouts.
