@@ -28,13 +28,33 @@ type Libp2pTransport struct {
 	// Options is the list of options used to create the libp2p host
 	Options []libp2p.Option
 	// IsStarted indicates whether the transport is currently running
-	isStarted bool
+	IsStarted bool
 
 	// In and Out channels for managing incoming and outgoing messages
 	// Outs is a cache of outgoing message
 	outs map[APINode.NodeID]map[APINode.Protocol]chan APINode.NodeMessage
 	// Ins is a cache of incoming message
 	ins map[APINode.Protocol]chan APINode.NodeMessage
+}
+
+type Libp2pTransportOptions struct {
+	Addrs      []string
+	OutsLength int64
+	InsLength  int64
+}
+
+func NewLibp2pTransport(options Libp2pTransportOptions) (*Libp2pTransport, error) {
+	var opts []libp2p.Option
+	for _, opt := range options.Addrs {
+		opts = append(opts, libp2p.ListenAddrStrings(opt))
+	}
+
+	return &Libp2pTransport{
+		Options:   opts,
+		IsStarted: false,
+		outs:      make(map[APINode.NodeID]map[APINode.Protocol]chan APINode.NodeMessage),
+		ins:       make(map[APINode.Protocol]chan APINode.NodeMessage),
+	}, nil
 }
 
 // TODO: implement the methods of the Transport interface for Libp2pTransport
