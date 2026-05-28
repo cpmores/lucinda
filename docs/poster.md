@@ -36,9 +36,11 @@ Lucinda is specially designed to eliminate this gap. It serves as generalized, r
 
 ## 2. System Design
 
-![](/home/cpmores/Documents/development/repo/lucinda/docs/photos/Lucinda-poster.png)
+![](./photos/Lucinda-poster.png)
 
 // Lucinda 设备从用户处获取 Request, 并在 TaskWrapper 处包装成 Task 对象进行 Task 处理流程。Task Workflow 过程被分布在云-端网络之中，通过 TaskBoard 将其与单机解耦，使整个边缘网络加入到任务处理之中。在经过 “Plan-Execute-Reduce” 流水线后，系统将结果返回给用户，完成一个任务流程。
+
+The basic workflow of Lucinda initiateds when a device intercepts a user ChatRequest, which the gateway immediately encapsulates into a structured Task object via the TaskWrapper. Instead of being confined to a standalone machine, the execution topology is distributed asynchronously across the edge-cloud network mesh. By utilizing a shared TaskBoard, single-node decoupling is accomplished, effectively recruiting the computational power of the entire local neighbourhood into the task procssing pool. Following the execution of the “Plan-Execute-Reduce” pipeline, the final aggregated artifact is streamed back to the user to complete the operational cycle.
 
 // Lucinda 系统主要分为四层结构：
 
@@ -46,6 +48,31 @@ Lucinda is specially designed to eliminate this gap. It serves as generalized, r
 2. Task Workflow Layer: Task 处理流水线，面向整个云-端网络
 3. Task Management Layer：维护本节点的 Task 状态、Task 调度以及 Task 节点间传输
 4. Infrastruction Layer: Eventbus, Transport, HardwareMonitor等基础组件，以及 agent 底层相关，如 ProviderController，Toolbox，ContextManager 等，提供云服务商服务接口
+
+The architecture of Lucinda is strictly separated into four highly cohesive layers combined with specialized dynamic mechanisms:
+
+### A. Four-Layer Architectural Blueprint
+
++ **Server and TaskWrapper Layer** : Functions as the network ingress, absorbing concurrent user payloads and constructing lifecycle-tracked Task contexts.
++ **Task Workflow Layer** : Governs the distributed multi-stage execution pipeline. The TaskPlanner segments complex inputs into a Directed Acyclic Graph (DAG) of micro-tasks: the TaskExecutor fires parallel agent executions or external tool invocations; the TaskReducer cleans and synthesizes intermediate tokens into a unified payload.
++ **Task Management Layer**: The orhestration center of each node. It manages local finite state machines (TaskStateManager). determines adaptive task allocations (TaskScheduler), and routes data packets across endpoints (TaskPostman).
++ **Infrastructure Layer** : The hardware and network layer. It provisions a lock-free EventBus for macro-level asynchronous signaling,  a peer-to-peer Transport subsystem for node connectivity, and a HardwareMonitor for live telemetry. It also aggregates agent-level foundational modules including the ProviderController (also for cloud API wrapping), the Toolbox (tool management for overall agents), and the session ContextManager, all of them have extension API exposed to Cloud Service Providers.
+
+### B. TaskBoard with a Publish-Lease Protocol: Real-time Task Interview
+
+To eliminate distributed race conditions without a heavy centralized lock manager, Lucinda implements a Publish-Lease protocol on the shared TaskBoard. When a sub-task DAG is generated, its nodes are injected onto the board in a Pending state. Peer workers run internel “Task Interviews”. matching task hardware demands against their current capability envelopes. Upon selection, the TaskBoard issues a temporary Lease bound to a strict Time-To-Live (TTL). The worker must continuously emit low-overhead heartbeats; if a node suffers sudden compute starvation or goes offline, the lease silently expires, and the TaskBoard automatically reverts the sub-task back to Pending for peer reclamation, achieving fault-tolerance.
+
+### C. Service Module: Multi-Attribute Adaptive Dispatching Framework 
+
+Borrowing principles from ploymorphic execution runtimes, the Service Module shifts away from rigid, label-based node routing. Instead, the identities of a specific node is defined by its module plugged, evaluated by ComponentRegistry (e.g. active tool availability, wrapper, planner, executor, reducer). Tasks are routed via a multi-variant matching function that dynamically balances task resource demands againtst live telemetry data, enabling nodes to adaptively transform roles based on shifting network demands. 
+
+### D. Multi-Server and Provider Driver Support 
+
+To sustain horizontal scalability across heterogeneous edge-cloud meshes, the ProviderController establishes an abstract driver interface. It wraps diverse execution runtimes (e.g. local Ollama instances or remote commercial APIs) into uniform compute interfaces. High-frequency, massive data stream, such as live raw LLM streaming tokens, are ingested and digested strictly within the private channels of the localized provider module, while only macro state transitions are broadcasted to the global Eventbus, safeguarding network stability across multi-server environments.
+
+### E. Native Non-Blocking Asynchronous Task
+
+To isolate resource-constrained host machines from synchronous thread starvation during prolonged LLM inference iterations, Lucinda features native asynchronous task tracking. The TaskStateManager maintains the DAG for the task plan, tracking the structural dependencies and real-time execution states of every sub-task node. Instead of blocking the runtime while waiting for upstream tokens to generate, it relies on non-blocking event notifications emitted by the EventBus. When an execution dependency is cleared, the state machine reactively advances the DAG cursor, triggering the next execution phase via lightweight Go channels. This ensures that the global state remains deterministic and fully decoupled from the physical execution lifecycles of individual workers.
 
  // TaskBoard with a Publish-Lease Protocol: Real-time Task Interview
 
