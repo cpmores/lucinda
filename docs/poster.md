@@ -1,4 +1,4 @@
-# Lucinda: A Computing-Power Aware Orchestration Framework for Distributed AI Agents
+# Lucinda: A Computing-Power Aware Orchestration Framework for Edge Distributed AI Agents
 
 ## Abstract
 
