@@ -16,15 +16,16 @@ The core principle: **build from the bottom up** — each layer depends on the o
 
 ### 1.2 Transport (libp2p)
 
-- **Status:** Stubbed (`pkg/infrastructure_layer/transport/transporters/host.go` — all methods return nil)
+- **Status:** Done (`pkg/infrastructure_layer/transport/transporters/host.go`)
 - **Depends on:** EventBus (1.1)
-- **Work:** Port the stream handler, sendWorker, and mDNS discovery from the legacy `internel/others/transport/libp2p/host.go` into the new `transport_libp2p` package. The TaskBoard and TaskPostman can't function without inter-node messaging.
+- **Done:** Full `Transport` interface implementation: `Start`/`Stop` lifecycle, `Open`/`Close` per-protocol stream handlers, `Send` (per-peer per-protocol buffered channels with lazy stream creation), `Publish` (broadcast to all peers), `Dial` (explicit peer connection), `Peers`, self-connection for local message delivery, mDNS LAN discovery, network notifee for automatic outbound channel cleanup on peer disconnect, 16 tests passing with race detector.
 
 ### 1.3 HardwareMonitor
 
-- **Status:** Not started (legacy version in `internel/others/monitor/monitor.go` is all stubs)
+- **Status:** In progress (`pkg/infrastructure_layer/HardwareMonitor/monitor.go`)
 - **Depends on:** EventBus (1.1)
-- **Work:** Collect real-time vRAM, CPU, and active model info. Read GPU stats via Ollama's `/api/ps` endpoint or NVML. Broadcast hardware deltas to the EventBus for the Capability CV system.
+- **Done:** CPU usage (gopsutil), memory (total/free/used), per-core count, delta detection with configurable thresholds, ticker-based polling, thread-safe Snapshot(), tests (8 passing, race-free).
+- **Remaining:** GPU VRAM collection via Ollama `/api/ps` and/or NVML. Active model inventory. EventBus integration — currently logs significant changes; needs to publish `HardwareChanged` events to the EventBus so the Capability CV builder can subscribe.
 
 ### 1.4 ProviderController + Ollama Driver
 

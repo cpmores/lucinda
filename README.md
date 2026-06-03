@@ -132,7 +132,7 @@ This prevents token-volume traffic from saturating the control plane — a criti
 |---|---|---|
 | **EventBus** (in-memory) | ✅ Done | `pkg/infrastructure_layer/eventbus/` |
 | **Transport** (libp2p + mDNS) | ✅ Done | `pkg/infrastructure_layer/transport/transporters/` |
-| **HardwareMonitor** | 🔴 Not started | — |
+| **HardwareMonitor** | 🟡 CPU/mem done, GPU pending | `pkg/infrastructure_layer/HardwareMonitor/` |
 | **ProviderController + Ollama Driver** | 🟡 Legacy (internel/) | `internel/others/provider/` |
 | **Toolbox & ContextManager** | 🔴 Not started | — |
 | **TaskStateManager** | 🔴 Not started | — |
@@ -142,7 +142,7 @@ This prevents token-volume traffic from saturating the control plane — a criti
 | **TaskPlanner / Executor / Reducer** | 🟡 Stubbed (internel/) | `internel/others/taskController/` |
 | **HTTP Server** | 🟡 Legacy (internel/) | `internel/others/server/` |
 | **TaskWrapper** | 🟡 Partial (internel/) | `internel/others/taskController/component/` |
-| **Tests** | ✅ EventBus + Transport | `*_test.go` |
+| **Tests** | ✅ EventBus + Transport + Monitor | `*_test.go` |
 
 **Current focus**: completing Phase 1 (Infrastructure Layer) by porting legacy `internel/` code into `pkg/`, then building Phase 2 (TaskBoard + Publish-Lease protocol).
 
@@ -194,6 +194,7 @@ go run cmd/node/main.go
 ```
 
 This starts a Lucinda node with:
+
 1. An in-memory EventBus
 2. A ProviderController that connects to the configured Ollama instance
 3. A libp2p Transport listening on a random port with mDNS discovery

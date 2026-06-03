@@ -1,7 +1,6 @@
-// lucinda/api/v1/event/event.go
-// api event provide event struct and event type definition
+// Package apievent api event provide event struct and event type definition
 // transferred between eventbus and other components
-package api_event
+package apievent
 
 // EventID represents the unique identifier for an event in every node
 type EventID int64

@@ -1,10 +1,11 @@
-// package transport provides the interface for the transport layer of this application
+// Package transport provides the interface for the transport layer of this application
 // the transport layer is responsible for receiving NodeMessage from network
 // and sending NodeMessage to network
 package transport
 
 import (
 	"context"
+
 	APINode "github.com/cpmores/lucinda/api/v1/node"
 )
 

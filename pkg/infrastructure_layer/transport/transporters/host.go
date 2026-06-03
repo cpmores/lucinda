@@ -1,6 +1,6 @@
-// TransportLibp2p is a transport implementation that
+// Package libp2p is a transport implementation that
 // uses libp2p to send and receive messages between nodes in the network
-package transport_libp2p
+package libp2p
 
 import (
 	"context"
