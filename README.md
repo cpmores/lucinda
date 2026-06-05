@@ -132,7 +132,8 @@ This prevents token-volume traffic from saturating the control plane — a criti
 |---|---|---|
 | **EventBus** (in-memory) | ✅ Done | `pkg/infrastructure_layer/eventbus/` |
 | **Transport** (libp2p + mDNS) | ✅ Done | `pkg/infrastructure_layer/transport/transporters/` |
-| **HardwareMonitor** | 🟡 CPU/mem done, GPU pending | `pkg/infrastructure_layer/HardwareMonitor/` |
+| **HardwareMonitor** | ✅ CPU + memory + EventBus done | `pkg/infrastructure_layer/hardware_monitor/` |
+| **ModuleManager** | ✅ Done | `pkg/infrastructure_layer/module_manager/` |
 | **ProviderController + Ollama Driver** | 🟡 Legacy (internel/) | `internel/others/provider/` |
 | **Toolbox & ContextManager** | 🔴 Not started | — |
 | **TaskStateManager** | 🔴 Not started | — |
@@ -142,7 +143,7 @@ This prevents token-volume traffic from saturating the control plane — a criti
 | **TaskPlanner / Executor / Reducer** | 🟡 Stubbed (internel/) | `internel/others/taskController/` |
 | **HTTP Server** | 🟡 Legacy (internel/) | `internel/others/server/` |
 | **TaskWrapper** | 🟡 Partial (internel/) | `internel/others/taskController/component/` |
-| **Tests** | ✅ EventBus + Transport + Monitor | `*_test.go` |
+| **Tests** | ✅ EventBus + Transport + Monitor + ModuleManager | `*_test.go` |
 
 **Current focus**: completing Phase 1 (Infrastructure Layer) by porting legacy `internel/` code into `pkg/`, then building Phase 2 (TaskBoard + Publish-Lease protocol).
 
@@ -260,14 +261,20 @@ lucinda/
 ### Testing
 
 ```bash
-# Unit tests — EventBus
+# Unit tests — EventBus (12 tests)
 go test -v ./pkg/infrastructure_layer/eventbus/
 
-# Unit tests — Transport (libp2p)
+# Unit tests — Transport (16 tests)
 go test -v -timeout 90s ./pkg/infrastructure_layer/transport/transporters/
 
-# All tests
-go test -v -timeout 90s ./pkg/...
+# Unit tests — HardwareMonitor (9 tests)
+go test -v -timeout 30s ./pkg/infrastructure_layer/hardware_monitor/
+
+# Unit tests — ModuleManager (15 tests)
+go test -v ./pkg/infrastructure_layer/module_manager/
+
+# All tests (52 total)
+go test -count=1 -timeout 90s ./pkg/...
 ```
 
 ### Implementation Roadmap
@@ -276,7 +283,7 @@ Follows a strict bottom-up build order. See [docs/pipeline.md](docs/pipeline.md)
 
 ```
 Phase 1 — Infrastructure (in progress)
-  EventBus ✅ → Transport ✅ → HardwareMonitor → ProviderController → Toolbox
+  EventBus ✅ → Transport ✅ → HardwareMonitor ✅ → ModuleManager ✅ → ProviderController → Toolbox
 
 Phase 2 — Task Management
   TaskStateManager → TaskBoard + Publish-Lease → TaskScheduler → TaskPostman

@@ -12,7 +12,11 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 
+	APIEvent "github.com/cpmores/lucinda/api/v1/event"
 	APIHardware "github.com/cpmores/lucinda/api/v1/hardware"
+	APIModule "github.com/cpmores/lucinda/api/v1/module"
+	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
+	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )
 
 // HardwareMonitor defines the interface for monitoring hardware resources.
@@ -24,6 +28,7 @@ type HardwareMonitor interface {
 
 type monitor struct {
 	sync.RWMutex
+	eventBus      eventbus.EventBus
 	IsStarted     bool
 	RepeatSec     int64
 	Cache         APIHardware.HardwareSnapshot
@@ -31,17 +36,15 @@ type monitor struct {
 }
 
 // NewHardwareMonitor creates a new instance of the hardware monitor.
-// returns a empty monitor with no data, Start() must be called to begin monitoring and populating the cache.
-func NewHardwareMonitor(repeatSec int64) monitor {
-	return monitor{
+func NewHardwareMonitor(eventBus eventbus.EventBus, repeatSec int64) *monitor {
+	return &monitor{
+		eventBus:  eventBus,
 		IsStarted: false,
 		RepeatSec: repeatSec,
 	}
 }
 
 // Start begins the hardware monitoring process.
-// It takes an immediate snapshot to prime the cache, then polls at the
-// configured RepeatSec interval. The goroutine exits when ctx is cancelled.
 func (m *monitor) Start(ctx context.Context) error {
 	m.Lock()
 	if m.IsStarted {
@@ -51,11 +54,7 @@ func (m *monitor) Start(ctx context.Context) error {
 	m.IsStarted = true
 	m.Unlock()
 
-	// Prime the CPU cache with a blocking read so subsequent non-blocking
-	// calls to cpu.PercentWithContext(..., 0, ...) return useful data.
 	_, _ = cpu.PercentWithContext(ctx, 1*time.Second, false)
-
-	// Take the initial snapshot immediately.
 	m.collect()
 
 	ticker := time.NewTicker(time.Duration(m.RepeatSec) * time.Second)
@@ -76,8 +75,7 @@ func (m *monitor) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop marks the monitor as stopped. The polling goroutine exits via context
-// cancellation, so the caller should cancel the context passed to Start first.
+// Stop marks the monitor as stopped.
 func (m *monitor) Stop() error {
 	m.Lock()
 	defer m.Unlock()
@@ -90,35 +88,29 @@ func (m *monitor) Stop() error {
 }
 
 // Snapshot returns the latest cached hardware snapshot.
-// It is safe to call concurrently from multiple goroutines.
 func (m *monitor) Snapshot() APIHardware.HardwareSnapshot {
 	m.RLock()
 	defer m.RUnlock()
 	return m.Cache
 }
 
-// ============================================================
-//                          utils
-// ============================================================
-
-// collect gathers fresh CPU, memory, and GPU telemetry, updates the cache,
+// collect gathers fresh CPU and memory telemetry, updates the cache,
 // and publishes a HardwareChanged event if the delta is significant.
-// Caller does not hold the lock — collect acquires it internally.
 func (m *monitor) collect() {
 	now := time.Now().Unix()
 	ctx := context.Background()
 
-	// ── CPU ──────────────────────────────────────────────────────────
+	// CPU
 	cores := runtime.NumCPU()
 	var usagePct float64
-	pcts, err := cpu.PercentWithContext(ctx, 0, false) // 0 = return cached delta
+	pcts, err := cpu.PercentWithContext(ctx, 0, false)
 	if err != nil {
 		log.Printf("hardware monitor: cpu.PercentWithContext failed: %s", err)
 	} else if len(pcts) > 0 {
 		usagePct = pcts[0]
 	}
 
-	// ── Memory ───────────────────────────────────────────────────────
+	// Memory
 	var memSnap APIHardware.MemorySnapshot
 	vmem, err := mem.VirtualMemoryWithContext(ctx)
 	if err != nil {
@@ -131,13 +123,8 @@ func (m *monitor) collect() {
 		}
 	}
 
-	// ── GPU ──────────────────────────────────────────────────────────
-	// HACK: collect GPU telemetry from Ollama /api/ps and/or NVML.
-	// For now this stays nil until the monitor is given an Ollama endpoint.
-	// After that, we get a complete GPUSnapshot from ProviderController
-	// Not includes it, but combined on higher level
+	// GPU: collected by ProviderController, merged at higher level
 
-	// ── Build & Cache ────────────────────────────────────────────────
 	snap := APIHardware.HardwareSnapshot{
 		Timestamp: now,
 		CPUSnapshot: APIHardware.CPUSnapshot{
@@ -154,7 +141,27 @@ func (m *monitor) collect() {
 	m.Unlock()
 
 	if APIHardware.SignificantChange(prev, snap) {
-		log.Printf("hardware monitor: significant change detected — cpu=%.1f%% mem=%d/%d",
+		log.Printf("hardware monitor: significant change detected -- cpu=%.1f%% mem=%d/%d",
 			snap.CPUSnapshot.UsagePct, snap.MemorySnapshot.FreeBytes, snap.MemorySnapshot.TotalBytes)
+		m.eventBus.Publish(APIEvent.HardwareChanged,
+			APIEvent.NewEvent(0, APIEvent.HardwareChanged, snap))
 	}
+}
+
+// ── AvailableModule Interface ──────────────────────────────────────────────────────────
+
+func (m *monitor) GetModuleType() APIModule.ModuleType {
+	return APIModule.HARDWAREMONITOR
+}
+
+func (m *monitor) GetModuleID() APIModule.ModuleID {
+	return APIModule.NewModuleID(m.GetModuleType(), "default")
+}
+
+func (m *monitor) CheckHealth() APIModule.ModuleHealth {
+	return APIModule.NewModuleHealth(m.GetModuleID(), m.GetModuleType(), APIModule.RUNNING)
+}
+
+func (m *monitor) RegisterWithManager(manager modulemanager.ModuleManager) error {
+	return manager.Register(m)
 }

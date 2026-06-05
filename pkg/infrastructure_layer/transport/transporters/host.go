@@ -9,6 +9,7 @@ import (
 	"log"
 	"sync"
 
+	APIModule "github.com/cpmores/lucinda/api/v1/module"
 	APINode "github.com/cpmores/lucinda/api/v1/node"
 	libp2p "github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -18,6 +19,8 @@ import (
 	mdns "github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"github.com/libp2p/go-msgio"
 	"github.com/multiformats/go-multiaddr"
+
+	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )
 
 const (
@@ -523,12 +526,12 @@ func (lt *Libp2pTransport) selfOutConnectLocked(ctx context.Context, proto APINo
 		lt.outs[selfNodeID] = make(map[APINode.Protocol]chan APINode.NodeMessage)
 	}
 
-	ch, ok := lt.outs[selfNodeID][proto]
+	_, ok := lt.outs[selfNodeID][proto]
 	if ok {
 		return // already connected
 	}
 
-	ch = make(chan APINode.NodeMessage, lt.outsLength)
+	ch := make(chan APINode.NodeMessage, lt.outsLength)
 	lt.outs[selfNodeID][proto] = ch
 
 	// capture references so the goroutine doesn't touch the map.
@@ -576,4 +579,22 @@ func (lt *Libp2pTransport) selfSendWorker(ctx context.Context, outCh <-chan APIN
 			}
 		}
 	}
+}
+
+// ── AvailableModule Interface ──────────────────────────────────────────────────────────
+
+func (lt *Libp2pTransport) GetModuleType() APIModule.ModuleType {
+	return APIModule.TRANSPORT
+}
+
+func (lt *Libp2pTransport) GetModuleID() APIModule.ModuleID {
+	return APIModule.NewModuleID(lt.GetModuleType(), "libp2p")
+}
+
+func (lt *Libp2pTransport) CheckHealth() APIModule.ModuleHealth {
+	return APIModule.NewModuleHealth(lt.GetModuleID(), lt.GetModuleType(), APIModule.RUNNING)
+}
+
+func (lt *Libp2pTransport) RegisterWithManager(manager modulemanager.ModuleManager) error {
+	return manager.Register(lt)
 }

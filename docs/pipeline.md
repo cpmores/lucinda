@@ -22,18 +22,24 @@ The core principle: **build from the bottom up** — each layer depends on the o
 
 ### 1.3 HardwareMonitor
 
-- **Status:** In progress (`pkg/infrastructure_layer/HardwareMonitor/monitor.go`)
+- **Status:** Done (`pkg/infrastructure_layer/hardware_monitor/monitor.go`)
 - **Depends on:** EventBus (1.1)
-- **Done:** CPU usage (gopsutil), memory (total/free/used), per-core count, delta detection with configurable thresholds, ticker-based polling, thread-safe Snapshot(), tests (8 passing, race-free).
-- **Remaining:** GPU VRAM collection via Ollama `/api/ps` and/or NVML. Active model inventory. EventBus integration — currently logs significant changes; needs to publish `HardwareChanged` events to the EventBus so the Capability CV builder can subscribe.
+- **Done:** CPU usage (gopsutil), memory (total/free/used), ticker-based polling, delta detection with configurable thresholds, thread-safe Snapshot(), EventBus integration (publishes `HardwareChanged` events on significant delta), implements `AvailableModule` interface for ModuleManager registration, 9 tests passing with race detector.
+- **Note:** GPU snapshots are the responsibility of ProviderController (1.5), not the HardwareMonitor. They will be merged into the Capability CV at a higher level.
 
-### 1.4 ProviderController + Ollama Driver
+### 1.4 ModuleManager
+
+- **Status:** Done (`pkg/infrastructure_layer/module_manager/manager.go`)
+- **Depends on:** nothing (api types only)
+- **Done:** `ModuleManager` interface: `Register`/`Unregister`, `Get`/`GetByType`/`List`/`Exists`, `Grant`/`Require` (access-control enforcement for the dependency DAG), `Health`/`HealthAll`. `AvailableModule` interface with `RegisterWithManager`. `Module` interface + `ModuleHealth` + status constants in `api/v1/module/`. All methods RWMutex-guarded. 15 tests passing with race detector.
+
+### 1.5 ProviderController + Ollama Driver
 
 - **Status:** Not started (legacy version exists in `internel/others/provider/`)
 - **Depends on:** EventBus (1.1), HardwareMonitor (1.3)
 - **Work:** Port the factory-based provider registry from the legacy code. Implement the Ollama driver: chat completion, model listing, health checks. Emit provider status changes to the EventBus. Design the abstract driver interface so cloud APIs (OpenAI, Anthropic) can be plugged in later.
 
-### 1.5 Toolbox & ContextManager
+### 1.6 Toolbox & ContextManager
 
 - **Status:** Not started
 - **Depends on:** EventBus (1.1)
@@ -162,6 +168,8 @@ The core principle: **build from the bottom up** — each layer depends on the o
 
 ```
 Phase 1 (Infrastructure)
+  ModuleManager (registry — all components register here)
+       │
   EventBus ──► Transport ──► HardwareMonitor ──► ProviderController
                 │                                        │
 Phase 2 (Task Management)                                │

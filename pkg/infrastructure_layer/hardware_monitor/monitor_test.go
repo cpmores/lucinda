@@ -5,17 +5,28 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	APIEvent "github.com/cpmores/lucinda/api/v1/event"
+	APIHardware "github.com/cpmores/lucinda/api/v1/hardware"
+	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 )
 
+func newTestMonitor(t *testing.T, repeatSec int64) (*monitor, eventbus.EventBus) {
+	t.Helper()
+	eb := eventbus.NewInMemoryEventBus()
+	m := NewHardwareMonitor(eb, repeatSec)
+	return m, eb
+}
+
 func TestNewHardwareMonitor(t *testing.T) {
-	m := NewHardwareMonitor(10)
+	eb := eventbus.NewInMemoryEventBus()
+	m := NewHardwareMonitor(eb, 10)
 	if m.IsStarted {
 		t.Fatal("monitor should not be started after New")
 	}
 	if m.RepeatSec != 10 {
 		t.Fatalf("expected RepeatSec=10, got %d", m.RepeatSec)
 	}
-	// Cache should be the zero value before Start.
 	snap := m.Snapshot()
 	if snap.Timestamp != 0 {
 		t.Fatal("expected zero timestamp before Start")
@@ -23,7 +34,7 @@ func TestNewHardwareMonitor(t *testing.T) {
 }
 
 func TestStartStop(t *testing.T) {
-	m := NewHardwareMonitor(60)
+	m, _ := newTestMonitor(t, 60)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -34,7 +45,6 @@ func TestStartStop(t *testing.T) {
 		t.Fatal("IsStarted should be true after Start")
 	}
 
-	// Snapshot should be populated after Start.
 	snap := m.Snapshot()
 	if snap.Timestamp == 0 {
 		t.Fatal("expected non-zero timestamp after Start")
@@ -46,8 +56,7 @@ func TestStartStop(t *testing.T) {
 		t.Fatal("expected total memory > 0")
 	}
 
-	// Stop should mark as stopped.
-	cancel() // cancels ctx, goroutine exits
+	cancel()
 	time.Sleep(100 * time.Millisecond)
 	if err := m.Stop(); err != nil {
 		t.Fatalf("Stop: %v", err)
@@ -58,7 +67,7 @@ func TestStartStop(t *testing.T) {
 }
 
 func TestDoubleStartError(t *testing.T) {
-	m := NewHardwareMonitor(60)
+	m, _ := newTestMonitor(t, 60)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -74,14 +83,15 @@ func TestDoubleStartError(t *testing.T) {
 }
 
 func TestStopBeforeStartError(t *testing.T) {
-	m := NewHardwareMonitor(10)
+	eb := eventbus.NewInMemoryEventBus()
+	m := NewHardwareMonitor(eb, 10)
 	if err := m.Stop(); err == nil {
 		t.Fatal("expected error stopping before start, got nil")
 	}
 }
 
 func TestSnapshotUpdatesOverTime(t *testing.T) {
-	m := NewHardwareMonitor(1) // 1-second interval
+	m, _ := newTestMonitor(t, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -99,7 +109,6 @@ func TestSnapshotUpdatesOverTime(t *testing.T) {
 		t.Fatal("first snapshot has no timestamp")
 	}
 
-	// Wait for at least one tick to fire.
 	time.Sleep(1500 * time.Millisecond)
 
 	second := m.Snapshot()
@@ -109,7 +118,8 @@ func TestSnapshotUpdatesOverTime(t *testing.T) {
 }
 
 func TestSnapshotBeforeStartReturnsZero(t *testing.T) {
-	m := NewHardwareMonitor(10)
+	eb := eventbus.NewInMemoryEventBus()
+	m := NewHardwareMonitor(eb, 10)
 	snap := m.Snapshot()
 	if snap.Timestamp != 0 {
 		t.Fatal("expected zero timestamp before Start")
@@ -123,7 +133,7 @@ func TestSnapshotBeforeStartReturnsZero(t *testing.T) {
 }
 
 func TestConcurrentSnapshot(t *testing.T) {
-	m := NewHardwareMonitor(60)
+	m, _ := newTestMonitor(t, 60)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -136,18 +146,13 @@ func TestConcurrentSnapshot(t *testing.T) {
 		m.Stop()
 	}()
 
-	// 10 goroutines calling Snapshot concurrently should not race.
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for j := 0; j < 100; j++ {
-				snap := m.Snapshot()
-				// Basic sanity: cores shouldn't change between calls.
-				if snap.CPUSnapshot.Cores <= 0 && snap.Timestamp != 0 {
-					// This is fine — just checking no panic or data race.
-				}
+				m.Snapshot()
 			}
 		}()
 	}
@@ -155,18 +160,16 @@ func TestConcurrentSnapshot(t *testing.T) {
 }
 
 func TestStartCancelledContext(t *testing.T) {
-	m := NewHardwareMonitor(60)
+	eb := eventbus.NewInMemoryEventBus()
+	m := NewHardwareMonitor(eb, 60)
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately
+	cancel()
 
-	// Start with an already-cancelled context.
 	if err := m.Start(ctx); err != nil {
 		t.Fatalf("Start should not error on cancelled context: %v", err)
 	}
-	// The goroutine will exit immediately because ctx is done.
 	time.Sleep(100 * time.Millisecond)
 
-	// Snapshot should still have data from the initial collect().
 	snap := m.Snapshot()
 	if snap.Timestamp == 0 {
 		t.Fatal("expected initial snapshot after Start with cancelled context")
@@ -176,7 +179,7 @@ func TestStartCancelledContext(t *testing.T) {
 }
 
 func TestMemoryValuesAreReasonable(t *testing.T) {
-	m := NewHardwareMonitor(60)
+	m, _ := newTestMonitor(t, 60)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -199,10 +202,39 @@ func TestMemoryValuesAreReasonable(t *testing.T) {
 	if snap.MemorySnapshot.UsedBytes <= 0 {
 		t.Fatal("used memory should be > 0")
 	}
-	// Used + Free ≈ Total (Available is technically not identical to Free,
-	// but Used should be less than Total).
 	if snap.MemorySnapshot.UsedBytes >= snap.MemorySnapshot.TotalBytes {
 		t.Fatalf("used (%d) should be < total (%d)",
 			snap.MemorySnapshot.UsedBytes, snap.MemorySnapshot.TotalBytes)
+	}
+}
+
+func TestPublishesHardwareChangedEvent(t *testing.T) {
+	eb := eventbus.NewInMemoryEventBus()
+	m := NewHardwareMonitor(eb, 60)
+
+	ch := eb.Subscribe(APIEvent.HardwareChanged, 10)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := m.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer func() {
+		cancel()
+		time.Sleep(100 * time.Millisecond)
+		m.Stop()
+	}()
+
+	select {
+	case event := <-ch:
+		if event.Type != APIEvent.HardwareChanged {
+			t.Fatalf("expected HardwareChanged event, got %s", event.Type)
+		}
+		if _, ok := event.Data.(APIHardware.HardwareSnapshot); !ok {
+			t.Fatalf("expected HardwareSnapshot data, got %T", event.Data)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for HardwareChanged event")
 	}
 }

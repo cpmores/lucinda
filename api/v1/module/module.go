@@ -8,18 +8,47 @@ type (
 	ModuleType string
 	// ModuleID represnets the identifier for a module, such as "transport-libp2p" or "eventbus-nats"
 	ModuleID string
+	// ModuleStatus represents the current status of a module, such as "running", "stopped", or "error"
+	ModuleStatus string
 )
 
 // ModuleTypes are defined under API
-// ModuleIds defined under Modules
 const (
 	EVENTBUS        ModuleType = "eventbus"
 	TRANSPORT       ModuleType = "transport"
 	HARDWAREMONITOR ModuleType = "hardware_monitor"
 	ModuleManager   ModuleType = "module_manager"
-	// TODO: other module types such as storage, monitor, etc.
 )
 
-// ModuleHealth structure
-// TODO: Finish ModuleHealth stucture
-type ModuleHealth struct{}
+// Module Status
+const (
+	INITIALIZING ModuleStatus = "initializing"
+	RUNNING      ModuleStatus = "running"
+	PENDING      ModuleStatus = "pending"
+	STOPPED      ModuleStatus = "stopped"
+	ERROR        ModuleStatus = "error"
+)
+
+// Module is the interface every component must implement to register with the ModuleManager.
+type Module interface {
+	ID() ModuleID
+	Type() ModuleType
+	Health() ModuleHealth
+}
+
+// ModuleHealth reports the current health of a module.
+type ModuleHealth struct {
+	ID        ModuleID     `json:"module_id"`
+	Type      ModuleType   `json:"module_type"`
+	Status    ModuleStatus `json:"status"`
+	Timestamp int64        `json:"timestamp"`
+	Error     string       `json:"error,omitempty"`
+}
+
+func NewModuleID(moduleType ModuleType, name string) ModuleID {
+	return ModuleID(string(moduleType) + "-" + name)
+}
+
+func NewModuleHealth(id ModuleID, typ ModuleType, status ModuleStatus) ModuleHealth {
+	return ModuleHealth{ID: id, Type: typ, Status: status}
+}
