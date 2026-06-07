@@ -46,4 +46,14 @@ type ProviderHealth struct {
 // ── Provider Controller ──────────────────────────────────────────────────────────
 
 // ProviderConfig represents the configuration for registering a provider,
-type ProviderConfig struct{}
+type ProviderConfig struct {
+	ID      string            `mapstructure:"id"`
+	Type    ProviderType      `mapstructure:"type"`
+	Driver  string            `mapstructure:"driver"` // "ollama", "openai", "anthropic"
+	Host    string            `mapstructure:"host"`
+	Port    int               `mapstructure:"port"`
+	BaseURL string            `mapstructure:"base_url"` // optional, overrides host:port
+	APIKey  string            `mapstructure:"api_key"`  // empty for ollama
+	Headers map[string]string `mapstructure:"headers"`  // extra headers
+	Models  []string          `mapstructure:"models"`
+}

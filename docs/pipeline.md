@@ -35,9 +35,10 @@ The core principle: **build from the bottom up** — each layer depends on the o
 
 ### 1.5 ProviderController + Ollama Driver
 
-- **Status:** Not started (legacy version exists in `internel/others/provider/`)
+- **Status:** In progress (`pkg/infrastructure_layer/provider/`)
 - **Depends on:** EventBus (1.1), HardwareMonitor (1.3)
-- **Work:** Port the factory-based provider registry from the legacy code. Implement the Ollama driver: chat completion, model listing, health checks. Emit provider status changes to the EventBus. Design the abstract driver interface so cloud APIs (OpenAI, Anthropic) can be plugged in later.
+- **Done:** `Provider` interface (ID, Driver, Models, GPU, Health, Generate, Stream) in `pkg/infrastructure_layer/provider/provider.go`. `ProviderController` interface with LoadProviders/Register/Get/List/Health/HealthAll/GPU. Factory-based controller using viper `UnmarshalKey`. `ChatRequest`/`ChatResponse`/`ChatMessage`/`ContentPart`/`StreamChunk` types in `api/v1/chat/`. `ProviderConfig`/`ProviderHealth`/`ProviderInfo` types in `api/v1/provider/`. Ollama driver stub in `drivers/ollama_provider.go`.
+- **Remaining:** Implement the Ollama driver (HTTP client, `/api/chat`, `/api/ps`, health check). Implement `Register()` in the controller to create drivers from config via a factory registry. Wire GPU telemetry to EventBus. Implement `AvailableModule` for ModuleManager registration.
 
 ### 1.6 Toolbox & ContextManager
 

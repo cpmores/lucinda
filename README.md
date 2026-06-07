@@ -134,7 +134,7 @@ This prevents token-volume traffic from saturating the control plane — a criti
 | **Transport** (libp2p + mDNS) | ✅ Done | `pkg/infrastructure_layer/transport/transporters/` |
 | **HardwareMonitor** | ✅ CPU + memory + EventBus done | `pkg/infrastructure_layer/hardware_monitor/` |
 | **ModuleManager** | ✅ Done | `pkg/infrastructure_layer/module_manager/` |
-| **ProviderController + Ollama Driver** | 🟡 Legacy (internel/) | `internel/others/provider/` |
+| **ProviderController + Ollama Driver** | 🟡 Interface done, driver stubbed | `pkg/infrastructure_layer/provider/` |
 | **Toolbox & ContextManager** | 🔴 Not started | — |
 | **TaskStateManager** | 🔴 Not started | — |
 | **TaskBoard + Publish-Lease** | 🔴 Message types only | `api/v1/other/pumping.go` |
@@ -283,7 +283,7 @@ Follows a strict bottom-up build order. See [docs/pipeline.md](docs/pipeline.md)
 
 ```
 Phase 1 — Infrastructure (in progress)
-  EventBus ✅ → Transport ✅ → HardwareMonitor ✅ → ModuleManager ✅ → ProviderController → Toolbox
+  EventBus ✅ → Transport ✅ → HardwareMonitor ✅ → ModuleManager ✅ → ProviderController 🟡 → Toolbox
 
 Phase 2 — Task Management
   TaskStateManager → TaskBoard + Publish-Lease → TaskScheduler → TaskPostman

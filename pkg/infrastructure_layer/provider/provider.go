@@ -28,6 +28,7 @@ type Provider interface {
 
 	// ── Health ──────────────────────────────────────────────────────────
 	Health() APIProvider.ProviderHealth
+	Warm(model string) error
 
 	// ── Chat ──────────────────────────────────────────────────────────
 	Generate(ctx context.Context, req *APIChat.ChatRequest) (*APIChat.ChatResponse, error)
