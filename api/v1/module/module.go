@@ -14,10 +14,11 @@ type (
 
 // ModuleTypes are defined under API
 const (
-	EVENTBUS        ModuleType = "eventbus"
-	TRANSPORT       ModuleType = "transport"
-	HARDWAREMONITOR ModuleType = "hardware_monitor"
-	ModuleManager   ModuleType = "module_manager"
+	EVENTBUS           ModuleType = "eventbus"
+	TRANSPORT          ModuleType = "transport"
+	HARDWAREMONITOR    ModuleType = "hardware_monitor"
+	MODULEMANAGER      ModuleType = "module_manager"
+	PROVIDERCONTROLLER ModuleType = "provider_controller"
 )
 
 // Module Status

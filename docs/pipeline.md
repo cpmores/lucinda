@@ -33,12 +33,16 @@ The core principle: **build from the bottom up** — each layer depends on the o
 - **Depends on:** nothing (api types only)
 - **Done:** `ModuleManager` interface: `Register`/`Unregister`, `Get`/`GetByType`/`List`/`Exists`, `Grant`/`Require` (access-control enforcement for the dependency DAG), `Health`/`HealthAll`. `AvailableModule` interface with `RegisterWithManager`. `Module` interface + `ModuleHealth` + status constants in `api/v1/module/`. All methods RWMutex-guarded. 15 tests passing with race detector.
 
-### 1.5 ProviderController + Ollama Driver
+### 1.5 ProviderController + Drivers
 
-- **Status:** In progress (`pkg/infrastructure_layer/provider/`)
+- **Status:** Done (`pkg/infrastructure_layer/provider/`)
 - **Depends on:** EventBus (1.1), HardwareMonitor (1.3)
-- **Done:** `Provider` interface (ID, Driver, Models, GPU, Health, Generate, Stream) in `pkg/infrastructure_layer/provider/provider.go`. `ProviderController` interface with LoadProviders/Register/Get/List/Health/HealthAll/GPU. Factory-based controller using viper `UnmarshalKey`. `ChatRequest`/`ChatResponse`/`ChatMessage`/`ContentPart`/`StreamChunk` types in `api/v1/chat/`. `ProviderConfig`/`ProviderHealth`/`ProviderInfo` types in `api/v1/provider/`. Ollama driver stub in `drivers/ollama_provider.go`.
-- **Remaining:** Implement the Ollama driver (HTTP client, `/api/chat`, `/api/ps`, health check). Implement `Register()` in the controller to create drivers from config via a factory registry. Wire GPU telemetry to EventBus. Implement `AvailableModule` for ModuleManager registration.
+- **Done:** `Provider` interface in `api/v1/provider/` (GetID, GetType, GetModels, GetInfo, GPU, Health, Generate, Stream, Warm). `ProviderController` with LoadProviders (viper UnmarshalKey), Register (drivers.Create factory), Get/List, Health/HealthAll, GPU (picks first local provider). `ChatRequest`/`ChatResponse`/`ChatMessage`/`ContentPart`/`StreamChunk` types in `api/v1/chat/`. `ProviderConfig` (with TotalVRAM, Timeout) / `ProviderHealth` / `ProviderInfo` types in `api/v1/provider/`.
+- **Ollama driver:** HTTP client → `POST /api/chat` (Generate), NDJSON stream (Stream), `GET /` (Health), `GET /api/ps` → GPUSnapshot with TotalVRAM from config. ContentPart → Ollama text+images wire format.
+- **vLLM driver:** HTTP client → `POST /v1/chat/completions` (Generate), SSE stream (Stream), `GET /health` (Health), `GET /metrics` Prometheus parser → GPUSnapshot. Handles content as string or array from API. 15 tests passing.
+- **Factory registry:** `drivers/registry.go` — Register/Create pattern. Each driver self-registers via `init()`. `cmd/pc/plugins.go` blank-imports all drivers.
+- **ModuleManager:** Implements `AvailableModule` (GetModuleType/ID, CheckHealth, RegisterWithManager). `PROVIDERCONTROLLER` constant added to module types.
+- **cmd/pc/main.go:** Working demo — registers vLLM Qwen provider, runs Generate + Stream + Health check.
 
 ### 1.6 Toolbox & ContextManager
 

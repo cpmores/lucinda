@@ -1,6 +1,30 @@
 // Package apiprovider
 package apiprovider
 
+import (
+	"context"
+
+	apichat "github.com/cpmores/lucinda/api/v1/chat"
+	apihardware "github.com/cpmores/lucinda/api/v1/hardware"
+)
+
+// ── Provider Interface ─────────────────────────────────────────────────
+
+// Provider is the interface every inference backend driver must implement.
+type Provider interface {
+	GetID()        string
+	GetType()      ProviderType
+	GetModels()    []string
+	GetInfo()      ProviderInfo
+
+	GPU()    (apihardware.GPUSnapshot, error)
+	Health() ProviderHealth
+
+	Generate(ctx context.Context, req *apichat.ChatRequest) (*apichat.ChatResponse, error)
+	Stream(ctx context.Context, req *apichat.ChatRequest) (<-chan *apichat.StreamChunk, error)
+	Warm(model string) error
+}
+
 // ── Provider ──────────────────────────────────────────────────────────
 
 // ProviderType represents the type of a provider,
@@ -56,4 +80,6 @@ type ProviderConfig struct {
 	APIKey  string            `mapstructure:"api_key"`  // empty for ollama
 	Headers map[string]string `mapstructure:"headers"`  // extra headers
 	Models  []string          `mapstructure:"models"`
+	TotalVRAM int64            `mapstructure:"total_vram"` // physical GPU VRAM in bytes
+	Timeout   int               `mapstructure:"timeout"`    // seconds between polls/retries
 }

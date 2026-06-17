@@ -134,7 +134,7 @@ This prevents token-volume traffic from saturating the control plane — a criti
 | **Transport** (libp2p + mDNS) | ✅ Done | `pkg/infrastructure_layer/transport/transporters/` |
 | **HardwareMonitor** | ✅ CPU + memory + EventBus done | `pkg/infrastructure_layer/hardware_monitor/` |
 | **ModuleManager** | ✅ Done | `pkg/infrastructure_layer/module_manager/` |
-| **ProviderController + Ollama Driver** | 🟡 Interface done, driver stubbed | `pkg/infrastructure_layer/provider/` |
+| **ProviderController + Drivers** (Ollama, vLLM) | ✅ Done | `pkg/infrastructure_layer/provider/` |
 | **Toolbox & ContextManager** | 🔴 Not started | — |
 | **TaskStateManager** | 🔴 Not started | — |
 | **TaskBoard + Publish-Lease** | 🔴 Message types only | `api/v1/other/pumping.go` |
@@ -143,9 +143,9 @@ This prevents token-volume traffic from saturating the control plane — a criti
 | **TaskPlanner / Executor / Reducer** | 🟡 Stubbed (internel/) | `internel/others/taskController/` |
 | **HTTP Server** | 🟡 Legacy (internel/) | `internel/others/server/` |
 | **TaskWrapper** | 🟡 Partial (internel/) | `internel/others/taskController/component/` |
-| **Tests** | ✅ EventBus + Transport + Monitor + ModuleManager | `*_test.go` |
+| **Tests** | ✅ All Phase 1 components (67 tests) | `*_test.go` |
 
-**Current focus**: completing Phase 1 (Infrastructure Layer) by porting legacy `internel/` code into `pkg/`, then building Phase 2 (TaskBoard + Publish-Lease protocol).
+**Current focus**: Phase 1 complete. Moving into Phase 2 — the TaskBoard + Publish-Lease protocol, the architectural centerpiece.
 
 See [docs/pipeline.md](docs/pipeline.md) for the full phased implementation plan and dependency graph.
 
@@ -283,7 +283,7 @@ Follows a strict bottom-up build order. See [docs/pipeline.md](docs/pipeline.md)
 
 ```
 Phase 1 — Infrastructure (in progress)
-  EventBus ✅ → Transport ✅ → HardwareMonitor ✅ → ModuleManager ✅ → ProviderController 🟡 → Toolbox
+  EventBus ✅ → Transport ✅ → HardwareMonitor ✅ → ModuleManager ✅ → ProviderController ✅ → Toolbox
 
 Phase 2 — Task Management
   TaskStateManager → TaskBoard + Publish-Lease → TaskScheduler → TaskPostman
