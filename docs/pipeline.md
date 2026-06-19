@@ -58,33 +58,33 @@ The core principle: **build from the bottom up** — each layer depends on the o
 
 ### 2.1 TaskStateManager
 
-- **Status:** Not started
-- **Depends on:** EventBus (1.1), Transport (1.2)
-- **Work:** The finite state machine that tracks every sub-task's lifecycle (Pending → Running → Completed/Failed). Maintains the DAG structure and reacts to event notifications to advance the cursor. Fully decoupled from physical execution lifecycles via Go channels.
+- **Status:** Done (`internel/task_management_layer/task_state_manager/manager.go`)
+- **Depends on:** EventBus (1.1)
+- **Done:** Full DAG lifecycle: Ingest (publishes roots as Ready), Claim (with lease watchdog goroutine), Start, Complete (cascades to successors via PredecessorNums), Failed (publishes TaskRepublished), Abandon (reverts to Ready), Dispose (marks all as Disposed), Expired (returns timed-out claims). Queries: Plan, Status, IsComplete. 15 tests passing with race detector.
 
 ### 2.2 TaskBoard + Publish-Lease Protocol
 
-- **Status:** Not started (message types defined in `api/v1/other/pumping.go`)
-- **Depends on:** Transport (1.2), EventBus (1.1), TaskStateManager (2.1)
-- **Work:** The architectural centerpiece. Implement the five-message protocol already defined:
-  - `TaskBroadcastMsg` — inject sub-task DAG nodes onto the board in Pending state
-  - `TaskRequestMsg` — peers submit Capability CVs to claim tasks
-  - `TaskAssignMsg` — board issues a TTL-bound lease to the winning peer
-  - `TaskAcceptMsg` — peer confirms the lease and begins execution
-  - `TaskResultMsg` — peer returns the completed result
-  - Heartbeat mechanism: workers emit low-overhead heartbeats; if a node goes silent, the lease expires and the sub-task reverts to Pending.
+- **Status:** Done (`internel/task_workflow_layer/task_board/board.go`)
+- **Depends on:** Transport (1.2), EventBus (1.1), TaskStateManager (2.1), HardwareMonitor (1.3), ProviderController (1.5)
+- **Done:** Full publish-lease protocol: `Putup` (builds TaskAd from TaskTracer, broadcasts via Transport), `Drawup` (receives remote ad, stores, submits bid via `buildCV`), `Handout` (collects CVs, starts interview timer), `Interview` (scores via CapabilityCV.Match, picks winner, sends TaskAssignMsg with prompt), `Ripup` (removes ads/bids), `Posted`/`Wanted` queries. Heartbeat ticker: `StateManager.Expired()` → rebroadcast. `buildCV`: queries HardwareMonitor.Snapshot() + ProviderController.GPU() for real CV data. Wiring: Deliver for Transport→EventBus, Watch for task.ready/task.republished/task.ad.received/task.cv.received. ModuleManager integration: Postman, Transport, Tracer, ProviderController, HardwareMonitor, StateManager. 4 tests.
 
-### 2.3 TaskScheduler + Capability CV + ComponentRegistry
+### 2.3 TaskPostman
 
-- **Status:** Not started
-- **Depends on:** TaskBoard (2.2), HardwareMonitor (1.3), ProviderController (1.4)
-- **Work:** The "Task Interview" system. Each node continuously builds a Capability CV from live hardware metrics and plugged modules. When sub-tasks appear on the TaskBoard, the scheduler runs a multi-variant matching function that balances task resource demands against candidate CVs. The ComponentRegistry tracks which plugins (tools, wrappers, planners, executors, reducers) are available on each node.
+- **Status:** Done (`internel/task_management_layer/task_postman/postman.go`)
+- **Depends on:** EventBus (1.1), Transport (1.2)
+- **Done:** `Watch` (EventBus subscription → handler in goroutine, context cancellation). `Deliver` (Transport.Incoming → EventBus.Publish by msg.Topic, fan-out by message type). `Stop` (cancel all watchers, wait for drain). 3 tests.
 
-### 2.4 TaskPostman
+### 2.4 TaskTracer
 
-- **Status:** Not started
-- **Depends on:** Transport (1.2)
-- **Work:** Routes data packets between endpoints with task-aware addressing. Lightweight — mostly a facade over the Transport layer. Handles direct node-to-node streaming for high-frequency token data (bypassing the global EventBus).
+- **Status:** Done (`internel/task_management_layer/task_tracer/tracer.go`)
+- **Depends on:** nothing (api types only)
+- **Done:** Two-category task storage: `Import` (local planned tasks), `Assigned` (tasks claimed from peers). `Remove`, `GetLocal`, `GetAssigned`, `ListLocal`, `ListAssigned`. RWMutex-guarded. 10 tests.
+
+### 2.5 CapabilityCV
+
+- **Status:** Done (`api/v1/capability/cv.go`)
+- **Depends on:** HardwareMonitor (1.3), ProviderController (1.5)
+- **Done:** `CapabilityCV` struct: PeerID, HardwareSnapshot, Models, Tools, Labels. `Match(spec)` method: VRAM check, model check, tool check, label overlap. Scoring based on free memory + priority. Used by TaskBoard.Interview().
 
 ---
 
@@ -172,19 +172,21 @@ The core principle: **build from the bottom up** — each layer depends on the o
 ## Dependency Graph
 
 ```
-Phase 1 (Infrastructure)
+Phase 1 (Infrastructure) ✅
   ModuleManager (registry — all components register here)
        │
   EventBus ──► Transport ──► HardwareMonitor ──► ProviderController
-                │                                        │
-Phase 2 (Task Management)                                │
-  TaskStateManager ◄── TaskBoard ◄── TaskScheduler ◄─────┘
+                │
+Phase 2 (Task Management) 🟡
+  TaskStateManager ──► TaskBoard ──► TaskPostman ──► TaskTracer
         │                                    │
 Phase 3 (Workflow)                           │
-  TaskPlanner ──► TaskExecutor ──► TaskReducer            │
-                                                       
-Phase 4 (Server)                                        
-  TaskWrapper ──► HTTP Server                            
+  TaskPlanner ──► TaskExecutor ◄─────────────┘
+        │
+  TaskReducer
+
+Phase 4 (Server)
+  TaskWrapper ──► HTTP Server
 
 Phase 5 (Cross-Cutting)
   main.go ──► Stream Isolation ──► Plugin System ──► Tests

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	APIModule "github.com/cpmores/lucinda/api/v1/module"
 	APINode "github.com/cpmores/lucinda/api/v1/node"
@@ -84,6 +85,10 @@ func NewLibp2pTransport(options Libp2pTransportOptions) (*Libp2pTransport, error
 		outsLength: outsLen,
 		insLength:  insLen,
 	}, nil
+}
+
+func (lt *Libp2pTransport) ID() APINode.NodeID {
+	return lt.NodeID
 }
 
 // Start creates the libp2p host and begins listening on configured addresses.
@@ -368,6 +373,9 @@ func (lt *Libp2pTransport) sendWorker(ctx context.Context, to APINode.NodeID, pr
 				writer = msgio.NewVarintWriter(stream)
 			}
 
+			msg.Timestamp = time.Now().Unix()
+			msg.From = lt.NodeID
+			msg.To = to
 			data, _ := json.Marshal(msg)
 			if err := writer.WriteMsg(data); err != nil {
 				log.Printf("libp2p transport: write error to %s, resetting stream: %s", to, err)
@@ -426,6 +434,17 @@ func (lt *Libp2pTransport) Peers() []APINode.NodeID {
 		nodeIDs = append(nodeIDs, APINode.NodeID(p.String()))
 	}
 	return nodeIDs
+}
+
+// Incoming returns the receive channel for a protocol, or error if not open.
+func (lt *Libp2pTransport) Incoming(proto APINode.Protocol) (<-chan APINode.NodeMessage, error) {
+	lt.RLock()
+	defer lt.RUnlock()
+	ch, ok := lt.ins[proto]
+	if !ok {
+		return nil, fmt.Errorf("protocol %s not open", proto)
+	}
+	return ch, nil
 }
 
 // cleanOutboundChannelsForPeer removes all outbound channels for a

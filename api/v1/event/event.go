@@ -11,18 +11,32 @@ type EventType string
 
 type Topic EventType
 
-const (
-	// User Events
-	UserRequestReceived EventType = "UserRequestReceived"
-	UserResponseSent    EventType = "UserResponseSent"
-	// Task Events (Finished)
-	TaskCreated  EventType = "TaskCreated"
-	TaskPlanned  EventType = "TaskPlanned"
-	TaskExecuted EventType = "TaskExecuted"
-	TaskReduced  EventType = "TaskReduced"
+type EventOnComplete func(data any) error
 
-	// Hardware changed
-	HardwareChanged EventType = "hardware_changed"
+const (
+	// User
+	UserRequestReceived EventType = "user.requested"
+	UserResponseSent    EventType = "user.responded"
+
+	// Task lifecycle
+	TaskPreplaned   EventType = "task.preplaned" // single-node plan, preplaned, subuscribed by planner
+	TaskReady       EventType = "task.ready"
+	TaskRunning     EventType = "task.running"
+	TaskDone        EventType = "task.done"
+	TaskFailed      EventType = "task.failed"
+	TaskRepublished EventType = "task.republished"
+
+	// Task Deliver
+	TaskAdReceived EventType = "task.ad.received"
+	TaskCVReceived EventType = "task.cv.received"
+	TaskAssigned   EventType = "task.assigned"
+
+	// Plan lifecycle
+	PlanCreated  EventType = "plan.created"
+	PlanComplete EventType = "plan.complete"
+
+	// Hardware
+	HardwareChanged EventType = "hardware.changed"
 )
 
 // Event represents an event in the system
@@ -32,9 +46,16 @@ type Event struct {
 	Data any       `json:"data"` // Payload of the event, can be any type
 }
 
-func NewEvent(id EventID, eventType EventType, data any) Event {
+var eventID EventID = 0
+
+func NewEventID() EventID {
+	eventID++
+	return eventID
+}
+
+func NewEvent(eventType EventType, data any) Event {
 	return Event{
-		ID:   id,
+		ID:   NewEventID(),
 		Type: eventType,
 		Data: data,
 	}

@@ -144,7 +144,7 @@ func (m *monitor) collect() {
 		log.Printf("hardware monitor: significant change detected -- cpu=%.1f%% mem=%d/%d",
 			snap.CPUSnapshot.UsagePct, snap.MemorySnapshot.FreeBytes, snap.MemorySnapshot.TotalBytes)
 		m.eventBus.Publish(APIEvent.HardwareChanged,
-			APIEvent.NewEvent(0, APIEvent.HardwareChanged, snap))
+			APIEvent.NewEvent(APIEvent.HardwareChanged, snap))
 	}
 }
 

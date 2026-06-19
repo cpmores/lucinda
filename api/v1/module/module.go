@@ -21,6 +21,13 @@ const (
 	PROVIDERCONTROLLER ModuleType = "provider_controller"
 )
 
+const (
+	TASKPOSTMAN      ModuleType = "task_postman"
+	TASKBOARD        ModuleType = "task_board"
+	TASKSTATEMANAGER ModuleType = "task_state_manager"
+	TASKTRACER       ModuleType = "task_tracer"
+)
+
 // Module Status
 const (
 	INITIALIZING ModuleStatus = "initializing"

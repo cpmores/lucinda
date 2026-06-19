@@ -11,6 +11,7 @@ import (
 
 // Transport is the interface dealing with messages between nodes
 type Transport interface {
+	ID() APINode.NodeID
 	// Start: begin managing in and out messages
 	Start(ctx context.Context) error
 	// Open: open transport protocal , allowing it to receive messages from the network
@@ -25,4 +26,8 @@ type Transport interface {
 	Send(ctx context.Context, to APINode.NodeID, message APINode.NodeMessage) error
 	// Publish: send a message to all nodes in the network
 	Publish(ctx context.Context, message APINode.NodeMessage) error
+
+	// Incoming returns the receive channel for a protocol.
+	// Messages received from the network on this protocol are pushed here.
+	Incoming(protocol APINode.Protocol) (<-chan APINode.NodeMessage, error)
 }

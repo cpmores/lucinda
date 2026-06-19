@@ -136,16 +136,17 @@ This prevents token-volume traffic from saturating the control plane — a criti
 | **ModuleManager** | ✅ Done | `pkg/infrastructure_layer/module_manager/` |
 | **ProviderController + Drivers** (Ollama, vLLM) | ✅ Done | `pkg/infrastructure_layer/provider/` |
 | **Toolbox & ContextManager** | 🔴 Not started | — |
-| **TaskStateManager** | 🔴 Not started | — |
-| **TaskBoard + Publish-Lease** | 🔴 Message types only | `api/v1/other/pumping.go` |
-| **TaskScheduler + Capability CV** | 🔴 Not started | — |
-| **TaskPostman** | 🔴 Not started | — |
-| **TaskPlanner / Executor / Reducer** | 🟡 Stubbed (internel/) | `internel/others/taskController/` |
-| **HTTP Server** | 🟡 Legacy (internel/) | `internel/others/server/` |
-| **TaskWrapper** | 🟡 Partial (internel/) | `internel/others/taskController/component/` |
-| **Tests** | ✅ All Phase 1 components (67 tests) | `*_test.go` |
+| **TaskStateManager** | ✅ DAG lifecycle + cascade | `internel/task_management_layer/task_state_manager/` |
+| **TaskBoard + Publish-Lease** | ✅ Broadcast/bid/assign/heartbeat | `internel/task_workflow_layer/task_board/` |
+| **TaskPostman** | ✅ Watch + Deliver | `internel/task_management_layer/task_postman/` |
+| **TaskTracer** | ✅ Local + assigned tracking | `internel/task_management_layer/task_tracer/` |
+| **CapabilityCV** | ✅ Match scoring | `api/v1/capability/` |
+| **TaskPlanner / Executor / Reducer** | 🔴 Not started | — |
+| **HTTP Server** | 🔴 Not started | — |
+| **TaskWrapper** | 🔴 Not started | — |
+| **Tests** | ✅ 99 tests across 9 packages | `*_test.go` |
 
-**Current focus**: Phase 1 complete. Moving into Phase 2 — the TaskBoard + Publish-Lease protocol, the architectural centerpiece.
+**Current focus**: Phase 2 core complete. Next: TaskExecutor for local execution, HTTP Server for user ingress.
 
 See [docs/pipeline.md](docs/pipeline.md) for the full phased implementation plan and dependency graph.
 
@@ -282,11 +283,11 @@ go test -count=1 -timeout 90s ./pkg/...
 Follows a strict bottom-up build order. See [docs/pipeline.md](docs/pipeline.md) for details.
 
 ```
-Phase 1 — Infrastructure (in progress)
-  EventBus ✅ → Transport ✅ → HardwareMonitor ✅ → ModuleManager ✅ → ProviderController ✅ → Toolbox
+Phase 1 — Infrastructure ✅
+  EventBus ✅ → Transport ✅ → HardwareMonitor ✅ → ModuleManager ✅ → ProviderController ✅
 
-Phase 2 — Task Management
-  TaskStateManager → TaskBoard + Publish-Lease → TaskScheduler → TaskPostman
+Phase 2 — Task Management 🟡
+  TaskStateManager ✅ → TaskPostman ✅ → TaskTracer ✅ → TaskBoard ✅ → TaskScheduler
 
 Phase 3 — Task Workflow
   TaskPlanner → TaskExecutor → TaskReducer
