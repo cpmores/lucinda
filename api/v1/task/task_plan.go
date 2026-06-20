@@ -21,6 +21,9 @@ type TaskPlan struct {
 	// ── Timeline ──────────────────────────────────────────────────────────
 	Deadline  time.Time `json:"deadline"`
 	CreatedAt time.Time `json:"created_at"`
+
+	// ── Callback ─────────────────────────────────────────────────────────
+	Notify chan<- string `json:"-"` // send final output here when plan completes
 }
 
 // TaskNode is a single sub-task in the DAG.

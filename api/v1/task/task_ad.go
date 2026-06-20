@@ -7,9 +7,11 @@ type TaskAd struct {
 }
 
 func TaskToTaskAd(task *Task) TaskAd {
-	return TaskAd{
+	ad := TaskAd{
 		ID:    task.Meta.ID,
 		Owner: task.Meta.Owner,
 		Spec:  task.Spec,
 	}
+	ad.Spec.Prompt = "" // do not include prompt in ads
+	return ad
 }

@@ -9,8 +9,7 @@ import (
 func makeTask(id APITask.TaskID, prompt string) *APITask.Task {
 	return &APITask.Task{
 		Meta: APITask.TaskMeta{ID: id, Owner: "test-owner"},
-		Spec: APITask.TaskSpec{Model: "gemma3"},
-		Prompt: prompt,
+		Spec: APITask.TaskSpec{Prompt: prompt, Model: "gemma3"},
 	}
 }
 
@@ -130,10 +129,10 @@ func TestSeparateStorage(t *testing.T) {
 	local, _ := tr.GetLocal("shared-id")
 	assigned, _ := tr.GetAssigned("shared-id")
 
-	if local.Prompt != "local version" {
+	if local.Spec.Prompt != "local version" {
 		t.Fatal("local and assigned storage are not separate")
 	}
-	if assigned.Prompt != "assigned version" {
+	if assigned.Spec.Prompt != "assigned version" {
 		t.Fatal("local and assigned storage are not separate")
 	}
 }

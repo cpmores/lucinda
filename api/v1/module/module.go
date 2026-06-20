@@ -26,6 +26,9 @@ const (
 	TASKBOARD        ModuleType = "task_board"
 	TASKSTATEMANAGER ModuleType = "task_state_manager"
 	TASKTRACER       ModuleType = "task_tracer"
+	TASKPLANNER      ModuleType = "task_planner"
+	TASKREDUCER      ModuleType = "task_reducer"
+	TASKEXECUTOR     ModuleType = "task_executor"
 )
 
 // Module Status

@@ -10,45 +10,44 @@ The core principle: **build from the bottom up** — each layer depends on the o
 
 ### 1.1 EventBus
 
-- **Status:** Done (`pkg/infrastructure_layer/eventbus`)
+- **Status:** Done (`pkg/infrastructure_layer/eventbus/`)
 - **Depends on:** nothing
-- **Rationale:** The entire system is event-driven — everything else publishes or subscribes. This must come first.
+- **Done:** `EventBus` interface: `Subscribe`, `Unsubscribe`, `Publish`. In-memory implementation with RWMutex-guarded subscriber map. Non-blocking publish (drops on full channel with log). Used by every other component for macro state transitions.
 
 ### 1.2 Transport (libp2p)
 
 - **Status:** Done (`pkg/infrastructure_layer/transport/transporters/host.go`)
-- **Depends on:** EventBus (1.1)
-- **Done:** Full `Transport` interface implementation: `Start`/`Stop` lifecycle, `Open`/`Close` per-protocol stream handlers, `Send` (per-peer per-protocol buffered channels with lazy stream creation), `Publish` (broadcast to all peers), `Dial` (explicit peer connection), `Peers`, self-connection for local message delivery, mDNS LAN discovery, network notifee for automatic outbound channel cleanup on peer disconnect, 16 tests passing with race detector.
+- **Depends on:** nothing (api types only)
+- **Done:** `Transport` interface: `ID`, `Start`/`Stop` lifecycle, `Open`/`Close` per-protocol, `Send` (per-peer buffered channels with lazy stream creation), `Publish` (broadcast to all peers), `Incoming` (receive channel per protocol). libp2p implementation with mDNS LAN discovery, self-connection for local message delivery, network notifee for peer disconnect cleanup. 16 tests passing.
 
 ### 1.3 HardwareMonitor
 
 - **Status:** Done (`pkg/infrastructure_layer/hardware_monitor/monitor.go`)
 - **Depends on:** EventBus (1.1)
-- **Done:** CPU usage (gopsutil), memory (total/free/used), ticker-based polling, delta detection with configurable thresholds, thread-safe Snapshot(), EventBus integration (publishes `HardwareChanged` events on significant delta), implements `AvailableModule` interface for ModuleManager registration, 9 tests passing with race detector.
-- **Note:** GPU snapshots are the responsibility of ProviderController (1.5), not the HardwareMonitor. They will be merged into the Capability CV at a higher level.
+- **Done:** CPU usage (gopsutil), memory (total/free/used). Ticker-based polling at configurable interval. Delta detection with configurable thresholds. Thread-safe `Snapshot()`. EventBus integration: publishes `HardwareChanged` on significant delta. Implements `AvailableModule`. 9 tests passing.
+- **Note:** GPU snapshots are provided by ProviderController (1.5) and merged into CapabilityCV by the TaskBoard.
 
 ### 1.4 ModuleManager
 
 - **Status:** Done (`pkg/infrastructure_layer/module_manager/manager.go`)
 - **Depends on:** nothing (api types only)
-- **Done:** `ModuleManager` interface: `Register`/`Unregister`, `Get`/`GetByType`/`List`/`Exists`, `Grant`/`Require` (access-control enforcement for the dependency DAG), `Health`/`HealthAll`. `AvailableModule` interface with `RegisterWithManager`. `Module` interface + `ModuleHealth` + status constants in `api/v1/module/`. All methods RWMutex-guarded. 15 tests passing with race detector.
+- **Done:** `ModuleManager` interface: `Register`/`Unregister`, `Get`/`GetByType`/`List`/`Exists`, `Grant`/`Require` (capability-based access control), `Health`/`HealthAll`. `AvailableModule` interface: `GetModuleType`, `GetModuleID`, `CheckHealth`, `RegisterWithManager`. All methods RWMutex-guarded. Module type constants (`TRANSPORT`, `TASKPOSTMAN`, `TASKEXECUTOR`, etc.) in `api/v1/module/`. 15 tests passing.
 
 ### 1.5 ProviderController + Drivers
 
 - **Status:** Done (`pkg/infrastructure_layer/provider/`)
-- **Depends on:** EventBus (1.1), HardwareMonitor (1.3)
-- **Done:** `Provider` interface in `api/v1/provider/` (GetID, GetType, GetModels, GetInfo, GPU, Health, Generate, Stream, Warm). `ProviderController` with LoadProviders (viper UnmarshalKey), Register (drivers.Create factory), Get/List, Health/HealthAll, GPU (picks first local provider). `ChatRequest`/`ChatResponse`/`ChatMessage`/`ContentPart`/`StreamChunk` types in `api/v1/chat/`. `ProviderConfig` (with TotalVRAM, Timeout) / `ProviderHealth` / `ProviderInfo` types in `api/v1/provider/`.
-- **Ollama driver:** HTTP client → `POST /api/chat` (Generate), NDJSON stream (Stream), `GET /` (Health), `GET /api/ps` → GPUSnapshot with TotalVRAM from config. ContentPart → Ollama text+images wire format.
-- **vLLM driver:** HTTP client → `POST /v1/chat/completions` (Generate), SSE stream (Stream), `GET /health` (Health), `GET /metrics` Prometheus parser → GPUSnapshot. Handles content as string or array from API. 15 tests passing.
+- **Depends on:** ModuleManager (1.4)
+- **Done:** `Provider` interface: `GetID`, `GetType`, `GetModels`, `GetInfo`, `GPU`, `Health`, `Generate`, `Stream`, `Warm`. `ProviderController`: `LoadProviders` (viper UnmarshalKey from `provider_controller.providers`), `Register` (drivers.Create factory), `Get`/`List`/`GetPlanProv`, `GPU` (aggregates from local providers). `ChatRequest`/`ChatResponse`/`ChatMessage`/`ContentPart`/`StreamChunk` types in `api/v1/chat/`.
+- **Ollama driver:** HTTP → `POST /api/chat` (Generate), NDJSON stream (Stream), `GET /` (Health), `GET /api/ps` (GPU).
+- **vLLM driver:** HTTP → `POST /v1/chat/completions` (Generate, OpenAI-compatible), SSE stream (Stream), `GET /health` (Health), `GET /metrics` Prometheus parser (GPU). Handles content as string or content array from API. 15 tests passing.
 - **Factory registry:** `drivers/registry.go` — Register/Create pattern. Each driver self-registers via `init()`. `cmd/pc/plugins.go` blank-imports all drivers.
-- **ModuleManager:** Implements `AvailableModule` (GetModuleType/ID, CheckHealth, RegisterWithManager). `PROVIDERCONTROLLER` constant added to module types.
-- **cmd/pc/main.go:** Working demo — registers vLLM Qwen provider, runs Generate + Stream + Health check.
+- **ModuleManager:** Implements `AvailableModule`. `PROVIDERCONTROLLER` constant in module types.
 
 ### 1.6 Toolbox & ContextManager
 
 - **Status:** Not started
 - **Depends on:** EventBus (1.1)
-- **Work:** Tool management for agents (register, discover, invoke tools). Session context persistence for conversation continuity across devices. Both expose extension APIs for cloud service providers.
+- **Work:** Tool management (register, discover, invoke). Session context persistence across devices. Extension API for cloud providers.
 
 ---
 
@@ -60,31 +59,31 @@ The core principle: **build from the bottom up** — each layer depends on the o
 
 - **Status:** Done (`internel/task_management_layer/task_state_manager/manager.go`)
 - **Depends on:** EventBus (1.1)
-- **Done:** Full DAG lifecycle: Ingest (publishes roots as Ready), Claim (with lease watchdog goroutine), Start, Complete (cascades to successors via PredecessorNums), Failed (publishes TaskRepublished), Abandon (reverts to Ready), Dispose (marks all as Disposed), Expired (returns timed-out claims). Queries: Plan, Status, IsComplete. 15 tests passing with race detector.
+- **Done:** Full DAG node FSM: `Ingest` (stores plan, publishes root nodes as Ready), `Claim` (Ready→Claimed, 30s lease with watchdog goroutine), `Start` (Claimed→Running, idempotent), `Complete` (Running→Done, cascades to successors via PredecessorNums, fires allDone notification with output), `Failed` (→Failed, publishes TaskRepublished), `Abandon` (Claimed→Ready), `Dispose` (marks all non-done as Disposed), `Expired` (returns timed-out claimed nodes). Queries: `Plan` (value copy), `Status` (per-node state map), `IsComplete`. 15 tests passing.
 
 ### 2.2 TaskBoard + Publish-Lease Protocol
 
 - **Status:** Done (`internel/task_workflow_layer/task_board/board.go`)
-- **Depends on:** Transport (1.2), EventBus (1.1), TaskStateManager (2.1), HardwareMonitor (1.3), ProviderController (1.5)
-- **Done:** Full publish-lease protocol: `Putup` (builds TaskAd from TaskTracer, broadcasts via Transport), `Drawup` (receives remote ad, stores, submits bid via `buildCV`), `Handout` (collects CVs, starts interview timer), `Interview` (scores via CapabilityCV.Match, picks winner, sends TaskAssignMsg with prompt), `Ripup` (removes ads/bids), `Posted`/`Wanted` queries. Heartbeat ticker: `StateManager.Expired()` → rebroadcast. `buildCV`: queries HardwareMonitor.Snapshot() + ProviderController.GPU() for real CV data. Wiring: Deliver for Transport→EventBus, Watch for task.ready/task.republished/task.ad.received/task.cv.received. ModuleManager integration: Postman, Transport, Tracer, ProviderController, HardwareMonitor, StateManager. 4 tests.
+- **Depends on:** Transport (1.2), EventBus (1.1), TaskStateManager (2.1), HardwareMonitor (1.3), ProviderController (1.5), TaskTracer (2.4)
+- **Done:** Full publish-lease protocol. `Putup`: looks up task in TaskTracer, builds TaskAd, broadcasts via Transport Publish + self-delivers via Drawup. `Drawup`: stores remote ad, submits bid via `submitBid`→`buildCV` (queries HardwareMonitor.Snapshot + ProviderController.GPU). `Handout`: collects CVs, triggers Interview on first bid. `Interview`: scores via CapabilityCV.Match, picks winner → Claim + publish TaskAssignMsg. Self-assignment when no qualified bids (Claim only, executor calls Start). `Ripup`: removes ads/bids. Heartbeat goroutine (every 5s): calls `StateManager.Expired()` and rebroadcasts expired nodes. Watches: `TaskReady`→Putup, `TaskRepublished`→Putup, `TaskAdReceived`→Drawup, `TaskCVReceived`→Handout, `TaskDone`→SetOutput+Complete. ModuleManager integration: Postman, Transport, Tracer, ProviderController, HardwareMonitor, StateManager. 4 tests.
 
 ### 2.3 TaskPostman
 
 - **Status:** Done (`internel/task_management_layer/task_postman/postman.go`)
 - **Depends on:** EventBus (1.1), Transport (1.2)
-- **Done:** `Watch` (EventBus subscription → handler in goroutine, context cancellation). `Deliver` (Transport.Incoming → EventBus.Publish by msg.Topic, fan-out by message type). `Stop` (cancel all watchers, wait for drain). 3 tests.
+- **Done:** `Watch`: subscribes to EventBus topic, runs handler in goroutine with context cancellation. `Deliver`: Transport.Incoming → EventBus.Publish (bridges network messages to local events). `Stop`: cancels all watchers, waits for drain. Implements `AvailableModule`. 3 tests.
 
 ### 2.4 TaskTracer
 
 - **Status:** Done (`internel/task_management_layer/task_tracer/tracer.go`)
 - **Depends on:** nothing (api types only)
-- **Done:** Two-category task storage: `Import` (local planned tasks), `Assigned` (tasks claimed from peers). `Remove`, `GetLocal`, `GetAssigned`, `ListLocal`, `ListAssigned`. RWMutex-guarded. 10 tests.
+- **Done:** Two-category in-memory task store: `Import` (local planned tasks), `Assigned` (tasks claimed from peers). `SetOutput` (updates task with execution result), `Remove` (deletes from local or assigned). Queries: `GetLocal`, `GetAssigned`, `ListLocal`, `ListAssigned`. RWMutex-guarded. 10 tests.
 
 ### 2.5 CapabilityCV
 
 - **Status:** Done (`api/v1/capability/cv.go`)
-- **Depends on:** HardwareMonitor (1.3), ProviderController (1.5)
-- **Done:** `CapabilityCV` struct: PeerID, HardwareSnapshot, Models, Tools, Labels. `Match(spec)` method: VRAM check, model check, tool check, label overlap. Scoring based on free memory + priority. Used by TaskBoard.Interview().
+- **Depends on:** hardware types
+- **Done:** `CapabilityCV` struct (PeerID, HardwareSnapshot, Models, Tools, Labels). `Match(spec)` method: VRAM check, model check, tool check, label overlap. Scoring: free memory GB + priority discount. Used by TaskBoard.Interview().
 
 ---
 
@@ -94,21 +93,21 @@ The core principle: **build from the bottom up** — each layer depends on the o
 
 ### 3.1 TaskPlanner
 
-- **Status:** Not started
-- **Depends on:** TaskBoard (2.2), Toolbox & ContextManager (1.5)
-- **Work:** Decomposes a macro-task into a Directed Acyclic Graph (DAG) of sub-tasks with dependency edges. Labels each sub-task with required capabilities, tools, and resource estimates. Publishes the DAG onto the TaskBoard.
+- **Status:** Done (`internel/task_workflow_layer/task_planner/planner.go`)
+- **Depends on:** TaskStateManager (2.1), TaskPostman (2.3), ProviderController (1.5), TaskTracer (2.4)
+- **Done:** Watches `TaskPreplaned` events. `plan()`: sends decomposition prompt to LLM via `pc.GetPlanProv().Generate()`, parses JSON response into DAG nodes, appends a reduce node to synthesize outputs, preserves the `Notify` channel from the wrapper for result delivery. `parse()`: extracts JSON from LLM response, unmarshals into nodes, builds successor/predecessor maps, appends reduce node with `Stage: StageReduce`. Falls back to a single-node plan if JSON parsing fails. Imports all nodes into TaskTracer before calling `sm.Ingest()` (which publishes roots as Ready). 4 tests.
 
 ### 3.2 TaskExecutor
 
-- **Status:** Not started
-- **Depends on:** ProviderController (1.4), TaskStateManager (2.1)
-- **Work:** Fires parallel agent executions or external tool invocations for each sub-task node. Routes to the appropriate provider (local Ollama or cloud API) based on the scheduler's assignment. Reports completion events to the EventBus.
+- **Status:** Done (`internel/task_workflow_layer/task_executor/executor.go`)
+- **Depends on:** TaskStateManager (2.1), TaskPostman (2.3), ProviderController (1.5), TaskTracer (2.4), Transport (1.2)
+- **Done:** Watches `TaskAssigned` events. `execute()`: records task in tracer via `Assigned`, matches requested model to a provider (or uses any available), calls `sm.Start()` to transition Claimed→Running, calls `prov.Generate()` with the prompt and budget tokens, publishes `TaskDone` with the result output. Does NOT remove from tracer (the board handler does cleanup after Complete). Note: for distributed execution, results currently flow through local EventBus; cross-node result routing is pending. 2 tests.
 
 ### 3.3 TaskReducer
 
-- **Status:** Not started
-- **Depends on:** TaskStateManager (2.1), EventBus (1.1)
-- **Work:** Waits for all DAG leaf nodes to complete, then cleans and synthesizes intermediate tokens into a unified response payload. Streams the final aggregated artifact back to the user.
+- **Status:** Done (`internel/task_workflow_layer/task_reducer/reducer.go`)
+- **Depends on:** TaskStateManager (2.1), TaskPostman (2.3), ProviderController (1.5), TaskTracer (2.4)
+- **Done:** Watches `TaskReady` for nodes with `Stage: StageReduce`. `reduce()`: looks up the plan via `sm.Plan()`, collects predecessor outputs from `tt.GetLocal()`/`tt.GetAssigned()`, generates a combined response via LLM, stores output in tracer via `tt.SetOutput()`, then runs the node's lifecycle: Claim → Start → Complete. The output string is passed directly to `sm.Complete(id, output)` which relays it to the plan's `Notify` channel when allDone fires. 1 test.
 
 ---
 
@@ -118,15 +117,15 @@ The core principle: **build from the bottom up** — each layer depends on the o
 
 ### 4.1 TaskWrapper
 
-- **Status:** Not started
-- **Depends on:** TaskBoard (2.2)
-- **Work:** Encapsulates a user ChatRequest into a structured TaskImage with lifecycle tracking. The bridge between the HTTP server and the TaskBoard. Returns a tracking ID immediately for async operation.
+- **Status:** Done (`internel/task_wrapper/wrapper.go`)
+- **Depends on:** EventBus (1.1)
+- **Done:** `Wrap(prompt, owner, notify)`: creates a `Task` with unique plan ID (`plan-{nanotime}`), attaches the notify channel for SSE streaming, publishes `TaskPreplaned` event. Returns the tracking ID for the caller to poll the stream endpoint. Pure bridge — no business logic.
 
-### 4.2 HTTP Server
+### 4.2 HTTP Server (UserServer)
 
-- **Status:** Not started (legacy version in `internel/others/server/`)
-- **Depends on:** TaskWrapper (4.1), EventBus (1.1)
-- **Work:** User-facing ingress. Port the factory-based server registry from the legacy code. Accepts concurrent ChatRequests, submits them via TaskWrapper, and returns tracking IDs. Later: gRPC, WebSocket, and admin endpoints.
+- **Status:** Done (`internel/user_server/server.go`)
+- **Depends on:** TaskWrapper (4.1)
+- **Done:** Three endpoints. `POST /chat`: reads JSON body (`prompt`, optional `owner`), creates a stream channel, calls `wrapper.Wrap()`, returns tracking ID as JSON. `GET /stream?plan=<id>`: SSE endpoint, blocks on the plan's notify channel, streams `{"type":"result","text":"..."}` then `{"type":"done"}`. `GET /healthz`: returns `ok`. `Start(addr)`: creates `http.Server` with graceful `Shutdown(ctx)` support. Uses `sync.Mutex` for stream map.
 
 ---
 
@@ -134,38 +133,43 @@ The core principle: **build from the bottom up** — each layer depends on the o
 
 *Depends on all previous phases.*
 
-### 5.1 main.go Rewrite
+### 5.1 main.go (cmd/pc)
 
-- **Depends on:** everything above
-- **Work:** Wire the new `pkg/` architecture together. Bootstrap order:
-
+- **Status:** Done (`cmd/pc/main.go`)
+- **Done:** Config-driven bootstrap via viper. Bootstrap order:
   ```
-  EventBus → Transport → HardwareMonitor → ProviderController
-      → TaskStateManager → TaskBoard → TaskScheduler
-      → TaskPlanner → TaskExecutor → TaskReducer
-      → TaskWrapper → HTTP Server
+  loadConfig (viper + YAML)
+    → EventBus → Transport (libp2p with config addrs)
+    → HardwareMonitor (configurable interval)
+    → ProviderController (LoadProviders from config)
+    → TaskPostman → TaskTracer → TaskStateManager
+    → register all infrastructure modules with ModuleManager
+    → TaskBoard → TaskExecutor → TaskPlanner → TaskReducer
+    → register workflow modules
+    → start all services in order
+    → HTTP server on configured port
+    → graceful shutdown on SIGINT/SIGTERM
+      (Server.Shutdown → te.Stop → reducer.Stop → planner.Stop
+       → tb.Stop → hm.Stop → tp.Stop → pm.Stop)
   ```
-
-  Remove all legacy `internel/` import paths.
+  All values (transport addrs, provider config, http port, monitor interval) come from `configs/server/config.yaml`. `cmd/pc/plugins.go` blank-imports ollama and vllm drivers.
 
 ### 5.2 Stream Isolation
 
-- **Depends on:** ProviderController (1.4), EventBus (1.1), Transport (1.2)
-- **Work:** Ensure high-frequency LLM token streams go through private provider channels, not the global EventBus. Only macro state transitions (task started, task completed, lease expired) are broadcast globally, safeguarding network stability.
+- **Status:** Partial — EventBus/Transport separation exists; LLM token streams currently go through local channels, not bypassed cross-node.
+- **Depends on:** ProviderController (1.5), EventBus (1.1), Transport (1.2)
+- **Work:** Ensure cross-node LLM token streams go through private Transport channels, not the global EventBus. Only macro state transitions are broadcast globally.
 
 ### 5.3 Service Module Plugin System
 
-- **Depends on:** ComponentRegistry (2.3)
-- **Work:** Full dynamic plugin registry so nodes can advertise capabilities and adapt roles at runtime. Extension API for cloud service providers to inject custom wrappers, planners, executors, and reducers.
+- **Status:** Not started
+- **Depends on:** ModuleManager (1.4)
+- **Work:** Dynamic plugin registry for nodes to advertise capabilities and adapt roles at runtime. Extension API for cloud providers.
 
 ### 5.4 Tests & Benchmarks
 
-- **Depends on:** everything above
-- **Work:** Quantitative evaluation suite as outlined in the poster:
-  - Task scheduling latencies
-  - Control-overhead of the Capability CV interview process
-  - Network throughput stability during asynchronous stream ingestion
-  - Self-healing recovery time during simulated node dropouts
+- **Status:** Partial — 11 test packages with good coverage. No benchmarks yet.
+- **Work:** Quantitative evaluation: scheduling latencies, CapabilityCV interview overhead, network throughput under stream load, self-healing recovery time under node dropout.
 
 ---
 
@@ -177,17 +181,34 @@ Phase 1 (Infrastructure) ✅
        │
   EventBus ──► Transport ──► HardwareMonitor ──► ProviderController
                 │
-Phase 2 (Task Management) 🟡
+Phase 2 (Task Management) ✅
   TaskStateManager ──► TaskBoard ──► TaskPostman ──► TaskTracer
-        │                                    │
-Phase 3 (Workflow)                           │
-  TaskPlanner ──► TaskExecutor ◄─────────────┘
-        │
-  TaskReducer
+        │                    │                         │
+Phase 3 (Workflow) ✅        │                         │
+  TaskPlanner ───────────────┤                         │
+        │                    │                         │
+  TaskExecutor ◄─────────────┘                         │
+        │                                              │
+  TaskReducer ◄────────────────────────────────────────┘
 
-Phase 4 (Server)
-  TaskWrapper ──► HTTP Server
+Phase 4 (Server) ✅
+  TaskWrapper ──► HTTP Server (user_server)
 
-Phase 5 (Cross-Cutting)
-  main.go ──► Stream Isolation ──► Plugin System ──► Tests
+Phase 5 (Cross-Cutting) 🟡
+  main.go ✅ ──► Stream Isolation 🟡 ──► Plugin System 🔴 ──► Benchmarks 🔴
+```
+
+### Data flow (end-to-end)
+
+```
+POST /chat → TaskWrapper.Wrap → EventBus: TaskPreplaned
+  → TaskPlanner: decompose via LLM → DAG → sm.Ingest → EventBus: TaskReady (roots)
+  → TaskBoard.Putup: broadcast Ad via Transport, self-Drawup
+  → CapabilityCV.Match → Interview → Claim winner → EventBus: TaskAssigned
+  → TaskExecutor: sm.Start → prov.Generate → EventBus: TaskDone
+  → TaskBoard (TaskDone handler): tt.SetOutput + sm.Complete
+    → cascade: PredecessorNums-- → successors become Ready
+  → TaskReducer (reduce node Ready): collect from tracer → LLM combine
+    → sm.Complete(reduceID, output) → allDone → Notify channel
+  → HTTP /stream: receives output → SSE response
 ```

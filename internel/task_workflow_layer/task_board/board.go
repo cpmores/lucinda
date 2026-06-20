@@ -12,6 +12,7 @@ import (
 	"time"
 
 	APICapability "github.com/cpmores/lucinda/api/v1/capability"
+	apihardware "github.com/cpmores/lucinda/api/v1/hardware"
 	APIEvent "github.com/cpmores/lucinda/api/v1/event"
 	APIModule "github.com/cpmores/lucinda/api/v1/module"
 	apinode "github.com/cpmores/lucinda/api/v1/node"
@@ -27,11 +28,11 @@ import (
 )
 
 const (
-	defaultInterviewTime int64 = 5 // seconds to collect bids
 	TaskBoardProtocol          = "/lucinda/taskboard/1.0.0"
 )
 
 type TaskBoard interface {
+	RegisterWithManager(m modulemanager.ModuleManager) error
 	Start(ctx context.Context) error
 	Stop() error
 
@@ -67,7 +68,7 @@ type board struct {
 	cancel context.CancelFunc
 }
 
-func NewTaskBoard(mm modulemanager.ModuleManager) TaskBoard {
+func NewTaskBoard(mm modulemanager.ModuleManager, sm taskstatemanager.TaskStateManager) TaskBoard {
 	postmans := mm.GetByType(APIModule.TASKPOSTMAN)
 	if len(postmans) == 0 {
 		log.Fatal("taskboard: no TaskPostman module found")
@@ -98,12 +99,6 @@ func NewTaskBoard(mm modulemanager.ModuleManager) TaskBoard {
 	}
 	hardwareMonitor := hardwareMonitors[0].(hardwaremonitor.HardwareMonitor)
 
-	stateManagers := mm.GetByType(APIModule.TASKSTATEMANAGER)
-	if len(stateManagers) == 0 {
-		log.Fatal("taskboard: no TaskStateManager module found")
-	}
-	stateManager := stateManagers[0].(taskstatemanager.TaskStateManager)
-
 	return &board{
 		mm: mm,
 		tp: transport,
@@ -111,7 +106,7 @@ func NewTaskBoard(mm modulemanager.ModuleManager) TaskBoard {
 		tt: taskTracer,
 		pc: providerController,
 		hm: hardwareMonitor,
-		sm: stateManager,
+		sm: sm,
 
 		myAds:   make(map[APITask.TaskID]*APITask.TaskAd),
 		peerAds: make(map[APITask.TaskID]*APITask.TaskAd),
@@ -125,6 +120,7 @@ func (b *board) Start(ctx context.Context) error {
 	ctx, b.cancel = context.WithCancel(ctx)
 
 	//
+	b.tp.Open(ctx, TaskBoardProtocol)
 	b.pm.Deliver(ctx, b.tp, TaskBoardProtocol)
 	// When local StateManager says a node is Ready, broadcast it.
 	b.pm.Watch(ctx, APIEvent.TaskReady, func(data any) error {
@@ -164,13 +160,20 @@ func (b *board) Start(ctx context.Context) error {
 		return b.Handout(APITask.TaskID(node.CV.TaskID), &node.CV)
 	})
 
+	b.pm.Watch(ctx, APIEvent.TaskDone, func(data any) error {
+		result, ok := data.(APITaskmsg.TaskResultMsg)
+		if !ok { return nil }
+		b.tt.SetOutput(result.NodeID, result.Output)
+			
+		return b.sm.Complete(result.NodeID, result.Output)
+	})
+
 	go b.heartbeat(ctx)
 	log.Println("taskboard: started")
 	return nil
 }
 
 func (b *board) Stop() error {
-	b.pm.Stop()
 	if b.cancel != nil {
 		b.cancel()
 	}
@@ -182,12 +185,12 @@ func (b *board) Stop() error {
 
 func (b *board) Drawup(ad *APITask.TaskAd) error {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-
 	if _, ok := b.peerAds[ad.ID]; ok {
+		b.mu.Unlock()
 		return nil
 	}
 	b.peerAds[ad.ID] = ad
+	b.mu.Unlock()
 	b.submitBid(*ad)
 	return nil
 }
@@ -214,22 +217,26 @@ func (b *board) Putup(taskID APITask.TaskID) error {
 	task, err := b.tt.GetLocal(taskID)
 	if err != nil {
 		b.mu.Unlock()
-		return fmt.Errorf("putup: %w", err)
+		log.Printf("taskboard: putup %s not in tracer, skipping", taskID)
+		return nil
 	}
-
+	if task.Spec.Stage == APITask.StageReduce {
+		b.mu.Unlock()
+		return nil
+	}
 	ad := APITask.TaskToTaskAd(task)
 	b.myAds[taskID] = &ad
 	b.mu.Unlock()
 
-	// Broadcast to peers via Transport. Their Postman.Deliver picks it up,
-	// publishes to TaskAdReceived, and their Drawup handles it.
-	return b.tp.Publish(context.Background(), apinode.NewNodeMessage(
+	b.tp.Publish(context.Background(), apinode.NewNodeMessage(
 		TaskBoardProtocol,
 		string(APIEvent.TaskAdReceived),
-		apinode.NodeID(""), // from is filled by transport
-		apinode.NodeID(""), // to all
+		apinode.NodeID(""),
+		apinode.NodeID(""),
 		APITaskmsg.TaskAdToTaskBroadcastMsg(&ad),
 	))
+	b.Drawup(&ad)
+	return nil
 }
 
 // ── Handout — peer submitted a CV bid on my ad ─────────────────────────
@@ -241,10 +248,7 @@ func (b *board) Handout(taskID APITask.TaskID, cv *APICapability.CapabilityCV) e
 	b.mu.Unlock()
 
 	if first {
-		go func() {
-			time.Sleep(time.Duration(defaultInterviewTime) * time.Second)
-			b.Interview(taskID)
-		}()
+		b.Interview(taskID)
 	}
 	return nil
 }
@@ -283,7 +287,13 @@ func (b *board) Interview(taskID APITask.TaskID) (*APICapability.CapabilityCV, e
 	}
 
 	if len(ranked) == 0 {
-		log.Printf("taskboard: no qualified bids for %s", taskID)
+		log.Printf("taskboard: no qualified bids for %s, self-assigning", taskID)
+		if b.sm != nil {
+			b.sm.Claim(context.Background(), taskID, string(b.tp.ID()), 30)
+			// Executor calls Start when it receives TaskAssigned.
+		}
+		assign := APITaskmsg.TaskToTaskAssignMsg(task)
+		b.pm.Publish(APIEvent.TaskAssigned, APIEvent.NewEvent(APIEvent.TaskAssigned, assign))
 		return nil, nil
 	}
 
@@ -294,14 +304,12 @@ func (b *board) Interview(taskID APITask.TaskID) (*APICapability.CapabilityCV, e
 	winner := ranked[0].cv
 	log.Printf("taskboard: task %s awarded to %s (score %d)", taskID, winner.PeerID, ranked[0].score)
 
+	if b.sm != nil {
+		b.sm.Claim(context.Background(), taskID, winner.PeerID, 30)
+	}
+
 	assign := APITaskmsg.TaskToTaskAssignMsg(task)
-	b.tp.Send(context.Background(), apinode.NodeID(winner.PeerID), apinode.NewNodeMessage(
-		TaskBoardProtocol,
-		string(APIEvent.TaskAssigned),
-		apinode.NodeID(""),
-		apinode.NodeID(winner.PeerID),
-		assign,
-	))
+	b.pm.Publish(APIEvent.TaskAssigned, APIEvent.NewEvent(APIEvent.TaskAssigned, assign))
 
 	delete(b.bids, taskID)
 	delete(b.myAds, taskID)
@@ -361,24 +369,23 @@ func (b *board) submitBid(ad APITask.TaskAd) {
 	if cv.Match(&ad.Spec) < 0 {
 		return
 	}
-	// In production: Transport.Send(origin, TaskRequestMsg{ad.ID, cv})
 	log.Printf("taskboard: submitted bid for %s", ad.ID)
-	b.tp.Send(context.Background(), apinode.NodeID(ad.Owner), apinode.NewNodeMessage(
-		TaskBoardProtocol,
-		string(APIEvent.TaskCVReceived),
-		apinode.NodeID(""),
-		apinode.NodeID(ad.Owner),
-		APITaskmsg.TaskCVToTaskRequestMsg(cv),
-	))
+	b.Handout(ad.ID, cv)
 }
 
 func (b *board) buildCV(ad APITask.TaskAd) *APICapability.CapabilityCV {
-	hardware := b.hm.Snapshot()
-	hardware.GPUSnapshot = append(hardware.GPUSnapshot, b.pc.GPU())
-	// TODO: add tools labels models
-	return &APICapability.CapabilityCV{
-		TaskID:   ad.ID,
-		PeerID:   string(b.tp.ID()),
-		Hardware: hardware,
+	var hw apihardware.HardwareSnapshot
+	if b.hm != nil { hw = b.hm.Snapshot() }
+	if b.pc != nil { hw.GPUSnapshot = append(hw.GPUSnapshot, b.pc.GPU()) }
+	var models []string
+	if b.pc != nil {
+		for _, p := range b.pc.List() { models = append(models, p.GetModels()...) }
 	}
+	return &APICapability.CapabilityCV{TaskID: ad.ID, PeerID: string(b.tp.ID()), Hardware: hw, Models: models}
 }
+
+
+func (b *board) GetModuleType() APIModule.ModuleType { return APIModule.TASKBOARD }
+func (b *board) GetModuleID() APIModule.ModuleID { return APIModule.NewModuleID(b.GetModuleType(), "default") }
+func (b *board) CheckHealth() APIModule.ModuleHealth { return APIModule.NewModuleHealth(b.GetModuleID(), b.GetModuleType(), APIModule.RUNNING) }
+func (b *board) RegisterWithManager(m modulemanager.ModuleManager) error { return m.Register(b) }

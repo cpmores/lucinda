@@ -4,103 +4,151 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
 	"time"
 
-	APIChat "github.com/cpmores/lucinda/api/v1/chat"
-	APIProvider "github.com/cpmores/lucinda/api/v1/provider"
+	"github.com/spf13/viper"
+
 	eventbus "github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 	hardwaremonitor "github.com/cpmores/lucinda/pkg/infrastructure_layer/hardware_monitor"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 	provider "github.com/cpmores/lucinda/pkg/infrastructure_layer/provider"
 	transport "github.com/cpmores/lucinda/pkg/infrastructure_layer/transport/transporters"
+	taskpostman "github.com/cpmores/lucinda/internel/task_management_layer/task_postman"
+	taskstatemanager "github.com/cpmores/lucinda/internel/task_management_layer/task_state_manager"
+	tasktracer "github.com/cpmores/lucinda/internel/task_management_layer/task_tracer"
+	taskboard "github.com/cpmores/lucinda/internel/task_workflow_layer/task_board"
+	taskexecutor "github.com/cpmores/lucinda/internel/task_workflow_layer/task_executor"
+	taskplanner "github.com/cpmores/lucinda/internel/task_workflow_layer/task_planner"
+	taskreducer "github.com/cpmores/lucinda/internel/task_workflow_layer/task_reducer"
+	userserver "github.com/cpmores/lucinda/internel/user_server"
 )
 
+func loadConfig() (*viper.Viper, error) {
+	v := viper.New()
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+
+	// Look in ./configs/server/ relative to working dir or binary.
+	v.AddConfigPath(".")
+	v.AddConfigPath("./configs/server")
+	if execPath, err := os.Executable(); err == nil {
+		v.AddConfigPath(filepath.Join(filepath.Dir(execPath), "configs", "server"))
+	}
+
+	if err := v.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("read config: %w", err)
+	}
+
+	// Defaults
+	v.SetDefault("http.port", 9090)
+	v.SetDefault("hardware_monitor.interval_sec", 5)
+	v.SetDefault("transport.libp2p.outs_length", 20)
+	v.SetDefault("transport.libp2p.ins_length", 100)
+
+	return v, nil
+}
+
 func main() {
-	// ── Infrastructure ──────────────────────────────────────────────────────────
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	// ── Config ────────────────────────────────────────────────────────────
+	v, err := loadConfig()
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
+
+	// ── Phase 1: Infrastructure ─────────────────────────────────────────
 	eb := eventbus.NewInMemoryEventBus()
 	mm := modulemanager.NewModuleManager()
 
 	tp, err := transport.NewLibp2pTransport(transport.Libp2pTransportOptions{
-		Addrs:      []string{"/ip4/127.0.0.1/tcp/0"},
-		OutsLength: 20,
-		InsLength:  100,
+		Addrs:      v.GetStringSlice("transport.libp2p.addrs"),
+		OutsLength: int64(v.GetInt("transport.libp2p.outs_length")),
+		InsLength:  int64(v.GetInt("transport.libp2p.ins_length")),
 	})
 	if err != nil {
-		log.Fatalf("Failed to create transport: %v", err)
+		log.Fatalf("transport: %v", err)
 	}
 
-	hm := hardwaremonitor.NewHardwareMonitor(eb, 5)
+	hm := hardwaremonitor.NewHardwareMonitor(eb, int64(v.GetInt("hardware_monitor.interval_sec")))
 	pc := provider.NewProviderController()
 
-	// HACK:
-	// ── Register vLLM Qwen provider ────────────────────────────────────────────
-	if err := pc.Register(APIProvider.ProviderConfig{
-		ID:     "vllm-qwen",
-		Driver: "vllm",
-		Host:   "localhost",
-		Port:   8000,
-		Models: []string{"qwen-2.5-gptq"},
-	}); err != nil {
-		log.Fatalf("Failed to register vllm provider: %v", err)
+	if err := pc.LoadProviders(v); err != nil {
+		log.Fatalf("load providers: %v", err)
 	}
 
-	// ── ModuleManager ───────────────────────────────────────────────────────────
+	// ── Phase 2: Task Management ────────────────────────────────────────
+	pm := taskpostman.NewTaskPostman(eb)
+	tt := tasktracer.NewTaskTracer()
+	sm := taskstatemanager.NewTaskStateManager(eb)
+
 	tp.RegisterWithManager(mm)
 	hm.RegisterWithManager(mm)
 	pc.RegisterWithManager(mm)
+	pm.RegisterWithManager(mm)
+	tt.RegisterWithManager(mm)
+	sm.RegisterWithManager(mm)
 
-	// ── Test: Generate from Qwen ────────────────────────────────────────────────
-	prov, err := pc.Get("vllm-qwen")
-	if err != nil {
-		log.Fatalf("Failed to get provider: %v", err)
+	tb := taskboard.NewTaskBoard(mm, sm)
+	te := taskexecutor.NewTaskExecutor(mm, sm)
+	planner := taskplanner.NewTaskPlanner(mm)
+	reducer := taskreducer.NewTaskReducer(mm)
+
+	tb.RegisterWithManager(mm)
+	te.RegisterWithManager(mm)
+	planner.RegisterWithManager(mm)
+	reducer.RegisterWithManager(mm)
+
+	// ── Start services ───────────────────────────────────────────────────
+	if err := tp.Start(ctx); err != nil {
+		log.Fatalf("transport: %v", err)
+	}
+	if err := hm.Start(ctx); err != nil {
+		log.Fatalf("monitor: %v", err)
+	}
+	if err := tb.Start(ctx); err != nil {
+		log.Fatalf("taskboard: %v", err)
+	}
+	if err := te.Start(ctx); err != nil {
+		log.Fatalf("executor: %v", err)
+	}
+	if err := planner.Start(ctx); err != nil {
+		log.Fatalf("planner: %v", err)
+	}
+	if err := reducer.Start(ctx); err != nil {
+		log.Fatalf("reducer: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	resp, err := prov.Generate(ctx, &APIChat.ChatRequest{
-		Model: "qwen-2.5-gptq",
-		Messages: []APIChat.ChatMessage{{
-			Role:    "user",
-			Content: []APIChat.ContentPart{{Type: APIChat.ContentText, Text: "Hello, who are you?"}},
-		}},
-		Options: APIChat.ModelOptions{MaxTokens: 100, Temperature: 0.7},
-	})
-	if err != nil {
-		log.Fatalf("Generate failed: %v", err)
-	}
-
-	fmt.Printf("Model:   %s\n", resp.Model)
-	fmt.Printf("Usage:   %d tokens (prompt: %d, completion: %d)\n",
-		resp.Usage.TotalTokens, resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
-	for _, part := range resp.Message.Content {
-		if part.Type == APIChat.ContentText {
-			fmt.Printf("Qwen:    %s\n", part.Text)
+	// ── HTTP Server ─────────────────────────────────────────────────────
+	httpPort := fmt.Sprintf(":%d", v.GetInt("http.port"))
+	srv := userserver.New(eb)
+	go func() {
+		if err := srv.Start(httpPort); err != nil {
+			log.Printf("server: %v", err)
 		}
+	}()
+
+	log.Printf("lucinda: all services started on %s", httpPort)
+
+	<-ctx.Done()
+	log.Println("lucinda: shutting down")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("server shutdown: %v", err)
 	}
 
-	// ── Test: Stream from Qwen ──────────────────────────────────────────────────
-	fmt.Print("\nStream:  ")
-	streamCh, err := prov.Stream(ctx, &APIChat.ChatRequest{
-		Model: "qwen-2.5-gptq",
-		Messages: []APIChat.ChatMessage{{
-			Role:    "user",
-			Content: []APIChat.ContentPart{{Type: APIChat.ContentText, Text: "Generate a small novel for 3000 words."}},
-		}},
-		Options: APIChat.ModelOptions{MaxTokens: 1000},
-	})
-	if err != nil {
-		log.Fatalf("Stream failed: %v", err)
-	}
-	for chunk := range streamCh {
-		if chunk.Done {
-			fmt.Println()
-			break
-		}
-		fmt.Print(chunk.Delta)
-	}
-
-	// ── Health check ────────────────────────────────────────────────────────────
-	health := prov.Health()
-	fmt.Printf("Health:  %s\n", health.Status)
+	te.Stop()
+	reducer.Stop()
+	planner.Stop()
+	tb.Stop()
+	hm.Stop()
+	tp.Stop()
+	pm.Stop()
 }

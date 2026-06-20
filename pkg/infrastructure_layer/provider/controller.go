@@ -20,6 +20,7 @@ type ProviderController interface {
 	Register(config APIProvider.ProviderConfig) error
 	Get(id string) (APIProvider.Provider, error)
 	List() []APIProvider.Provider
+	GetPlanProv() (APIProvider.Provider, error) // first available provider for planning
 	Health(id string) (APIProvider.ProviderHealth, error)
 	HealthAll() []APIProvider.ProviderHealth
 	GPU() APIHardware.GPUSnapshot
@@ -47,7 +48,7 @@ func NewProviderController() *controller {
 func (c *controller) LoadProviders(config *viper.Viper) error {
 	var configs []APIProvider.ProviderConfig
 
-	if err := config.UnmarshalKey("providers", &configs); err != nil {
+	if err := config.UnmarshalKey("provider_controller.providers", &configs); err != nil {
 		return fmt.Errorf("failed to unmarshal provider configs: %w", err)
 	}
 
@@ -94,6 +95,15 @@ func (c *controller) List() []APIProvider.Provider {
 	}
 
 	return list
+}
+
+// GetPlanProv returns the first available provider for planning tasks.
+func (c *controller) GetPlanProv() (APIProvider.Provider, error) {
+	list := c.List()
+	if len(list) == 0 {
+		return nil, fmt.Errorf("no provider available for planning")
+	}
+	return list[0], nil
 }
 
 // Health returns the health status of a provider by its ID.

@@ -16,7 +16,8 @@ A **compute-aware distributed agent orchestrator** for the edge. Lucinda bridges
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Configuration](#configuration)
-  - [Running a Node](#running-a-node)
+  - [Running](#running)
+  - [End-to-End Test](#end-to-end-test)
 - [Project Structure](#project-structure)
 - [Development](#development)
   - [Testing](#testing)
@@ -57,61 +58,59 @@ Lucinda sits between these layers. It gives agent frameworks a **hardware-aware 
 ```
 ┌──────────────────────────────────────────────┐
 │  Layer 4 — Server & TaskWrapper              │
-│  HTTP/gRPC ingress, ChatRequest → TaskImage  │
+│  HTTP ingress, ChatRequest → Task, SSE stream│
 ├──────────────────────────────────────────────┤
 │  Layer 3 — Task Workflow                     │
-│  Plan (DAG decomposition)                    │
-│  Execute (parallel agent invocations)        │
-│  Reduce (token synthesis → unified response) │
+│  Plan (LLM DAG decomposition)                │
+│  Execute (parallel sub-task invocation)      │
+│  Reduce (synthesize → unified response)      │
 ├──────────────────────────────────────────────┤
 │  Layer 2 — Task Management                   │
 │  TaskStateManager (FSM per sub-task)         │
 │  TaskBoard + Publish-Lease protocol          │
-│  TaskScheduler + Capability CV matching      │
-│  TaskPostman (node-to-node data routing)     │
+│  TaskPostman (EventBus ↔ Transport bridge)   │
+│  TaskTracer (observability store)            │
 ├──────────────────────────────────────────────┤
 │  Layer 1 — Infrastructure                    │
-│  EventBus (lock-free, macro signaling)       │
+│  EventBus (in-memory, macro signaling)       │
 │  Transport (libp2p, mDNS discovery)          │
-│  HardwareMonitor (live vRAM/CPU/GPU)         │
-│  ProviderController (Ollama, cloud APIs)     │
-│  Toolbox + ContextManager                    │
+│  HardwareMonitor (live CPU/memory)           │
+│  ProviderController (Ollama, vLLM, cloud)    │
+│  ModuleManager (registry + capability grant) │
 └──────────────────────────────────────────────┘
 ```
 
-Each layer depends only on the one below it. Layers communicate exclusively through the EventBus for state transitions and the Transport for data payloads.
+Each layer depends only on the one below it. Layers communicate through the EventBus for state transitions and the Transport for cross-node data payloads.
 
 ### Publish-Lease TaskBoard
 
-The architectural centerpiece. Instead of a centralized scheduler, sub-tasks are published onto a shared **TaskBoard** and claimed by peers through a five-message protocol:
+The architectural centerpiece. Instead of a centralized scheduler, sub-tasks are published onto a shared **TaskBoard** and claimed by peers through a message protocol:
 
 ```
 Publisher                    TaskBoard                   Worker
    │                             │                          │
    │── TaskBroadcastMsg ────────►│                          │
-   │   (inject DAG nodes,        │                          │
-   │    state = Pending)         │                          │
+   │   (publish DAG node Ad)     │                          │
    │                             │◄── TaskRequestMsg ───────│
    │                             │    (submit Capability CV) │
    │                             │── TaskAssignMsg ────────►│
    │                             │    (TTL-bound lease)      │
-   │                             │◄── TaskAcceptMsg ────────│
-   │                             │    (confirm + heartbeat)  │
    │                             │◄── TaskResultMsg ────────│
    │                             │    (completed output)     │
 ```
 
-- **Lease TTL**: Workers emit low-overhead heartbeats. If a node goes silent (crash, starvation), the lease expires and the sub-task reverts to Pending.
-- **Self-healing**: The TaskBoard automatically re-offers orphaned sub-tasks. Surviving peers re-interview and re-claim them transparently.
+- **Lease TTL**: 30-second claim lease. If a peer doesn't call `Start` within the window, the lease expires and the sub-task reverts to Ready.
+- **Self-healing**: The TaskBoard heartbeat (every 5s) re-offers expired nodes. Surviving peers re-interview and re-claim them transparently.
 - **No central lock manager**: Decentralized by design — any node can host the TaskBoard.
+- **Self-assignment**: If no qualified bids arrive within the interview window, the publishing node executes the task locally.
 
 ### Plan-Execute-Reduce Pipeline
 
-Every macro-task (e.g., a user ChatRequest) flows through three stages:
+Every macro-task ("what is 2+2") flows through three stages:
 
-1. **Plan** — `TaskPlanner` decomposes the request into a DAG of sub-tasks, each labeled with resource estimates, required tools, and dependency edges.
-2. **Execute** — `TaskExecutor` fires parallel invocations across the assigned providers (local Ollama, remote cloud API). Each sub-task is tracked by its own FSM in `TaskStateManager`.
-3. **Reduce** — `TaskReducer` waits for all DAG leaf nodes to complete, cleans intermediate artifacts, synthesizes tokens, and streams the final response back to the user.
+1. **Plan** — `TaskPlanner` asks an LLM to decompose the request into a DAG of sub-tasks, each with tool requirements, resource labels, and dependency edges. A reduce node is always appended to synthesize the final response. Falls back to a single-node plan if decomposition fails.
+2. **Execute** — `TaskExecutor` subscribes to `TaskAssigned` events and executes sub-tasks via the assigned provider (local vLLM, Ollama, or cloud API). Each node's state is tracked by the `TaskStateManager` FSM.
+3. **Reduce** — `TaskReducer` watches for reduce-stage nodes to become Ready, collects predecessor outputs from the `TaskTracer`, generates a combined response via LLM, and signals plan completion. The final output is relayed to the caller through the plan's `Notify` channel.
 
 ### Stream Isolation
 
@@ -136,17 +135,21 @@ This prevents token-volume traffic from saturating the control plane — a criti
 | **ModuleManager** | ✅ Done | `pkg/infrastructure_layer/module_manager/` |
 | **ProviderController + Drivers** (Ollama, vLLM) | ✅ Done | `pkg/infrastructure_layer/provider/` |
 | **Toolbox & ContextManager** | 🔴 Not started | — |
-| **TaskStateManager** | ✅ DAG lifecycle + cascade | `internel/task_management_layer/task_state_manager/` |
+| **TaskStateManager** | ✅ DAG lifecycle + cascade + lease | `internel/task_management_layer/task_state_manager/` |
 | **TaskBoard + Publish-Lease** | ✅ Broadcast/bid/assign/heartbeat | `internel/task_workflow_layer/task_board/` |
-| **TaskPostman** | ✅ Watch + Deliver | `internel/task_management_layer/task_postman/` |
+| **TaskPostman** | ✅ Watch + Deliver bridge | `internel/task_management_layer/task_postman/` |
 | **TaskTracer** | ✅ Local + assigned tracking | `internel/task_management_layer/task_tracer/` |
 | **CapabilityCV** | ✅ Match scoring | `api/v1/capability/` |
-| **TaskPlanner / Executor / Reducer** | 🔴 Not started | — |
-| **HTTP Server** | 🔴 Not started | — |
-| **TaskWrapper** | 🔴 Not started | — |
-| **Tests** | ✅ 99 tests across 9 packages | `*_test.go` |
+| **TaskPlanner** | ✅ LLM decomposition + fallback | `internel/task_workflow_layer/task_planner/` |
+| **TaskExecutor** | ✅ Subscribes TaskAssigned, calls provider | `internel/task_workflow_layer/task_executor/` |
+| **TaskReducer** | ✅ Collect + combine + notify | `internel/task_workflow_layer/task_reducer/` |
+| **TaskWrapper** | ✅ ChatRequest → Task + tracking ID | `internel/task_wrapper/` |
+| **HTTP Server** | ✅ POST /chat, SSE /stream, /healthz | `internel/user_server/` |
+| **main.go** (pc) | ✅ Config-driven bootstrap + shutdown | `cmd/pc/main.go` |
+| **Configuration** | ✅ viper + YAML | `configs/server/config.yaml` |
+| **Tests** | ✅ 11 test packages | `*_test.go` |
 
-**Current focus**: Phase 2 core complete. Next: TaskExecutor for local execution, HTTP Server for user ingress.
+**Current focus**: End-to-end pipeline functional. Next: Toolbox, gRPC transport, benchmarks.
 
 See [docs/pipeline.md](docs/pipeline.md) for the full phased implementation plan and dependency graph.
 
@@ -157,63 +160,83 @@ See [docs/pipeline.md](docs/pipeline.md) for the full phased implementation plan
 ### Prerequisites
 
 - **Go** 1.26+
-- **Ollama** (optional — for local inference; otherwise the node can route to cloud APIs)
+- **vLLM** or **Ollama** for local inference (default config points to vLLM at `localhost:8000`)
 
 ### Configuration
 
-Create `configs/server/config.yaml`:
+The project uses viper for configuration. Create or edit `configs/server/config.yaml`:
 
 ```yaml
 provider_controller:
   providers:
-    - id:   "ollama"
-      type: "ollama"
+    - id: "vllm-qwen"
+      driver: "vllm"
       host: "localhost"
-      port: 11434
+      port: 8000
       models:
-        - "gemma3"
-
-task_controller:
-  policy:
-    task_wrapper: "default"
-    task_divider: "default"
-    task_board:   "default"
-
-http:
-  port: 8080
+        - "qwen-2.5-gptq"
 
 transport:
   type: "libp2p"
   libp2p:
     addrs:
       - "/ip4/0.0.0.0/tcp/0"
+    outs_length: 20
+    ins_length: 100
+
+hardware_monitor:
+  interval_sec: 5
+
+http:
+  port: 9090
 ```
 
-### Running a Node
+Config search paths: `./configs/server/`, `.`, and binary-relative `configs/server/`.
+
+### Running
 
 ```bash
-go run cmd/node/main.go
+go run ./cmd/pc/
 ```
 
 This starts a Lucinda node with:
 
-1. An in-memory EventBus
-2. A ProviderController that connects to the configured Ollama instance
-3. A libp2p Transport listening on a random port with mDNS discovery
-4. A TaskController (pipeline stubs)
-5. An HTTP server on `:8080`
+1. Config loaded from `configs/server/config.yaml`
+2. In-memory EventBus
+3. libp2p Transport with mDNS discovery
+4. HardwareMonitor polling every 5s
+5. ProviderController with registered providers from config
+6. Full Plan-Execute-Reduce pipeline
+7. HTTP server on the configured port (default `:9090`)
 
-Send a test request:
+### End-to-End Test
 
 ```bash
-curl -X POST http://localhost:8080/chat -d '{"prompt": "Hello, Lucinda"}'
+bash ./scripts/test_e2e.sh
+```
+
+Sends a POST to `/chat`, polls the SSE `/stream` endpoint, and validates the response is non-empty.
+
+Manual test:
+
+```bash
+# Send a request
+curl -s -X POST http://localhost:9090/chat \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"what is 2+2"}'
+# → {"tracking_id":"plan-..."}
+
+# Stream the result
+curl -s -N "http://localhost:9090/stream?plan=<tracking_id>"
+# → data: {"type":"result","text":"2+2 = 4..."}
+# → data: {"type":"done"}
 ```
 
 Health check:
 
 ```bash
-curl http://localhost:8080/healthz
-# → Good Health
+curl http://localhost:9090/healthz
+# → ok
 ```
 
 ---
@@ -222,37 +245,50 @@ curl http://localhost:8080/healthz
 
 ```
 lucinda/
-├── api/v1/                  # Shared API types (versioned)
-│   ├── event/               #   Event struct + EventType constants
-│   │   └── eventbus/        #   Topic type
-│   ├── node/                #   NodeID, Protocol, NodeMessage
-│   ├── hardware/            #   Hardware status types
-│   ├── task/                #   Task lifecycle types
-│   ├── tool/                #   Tool definitions
-│   └── user/                #   User request/response types
+├── api/v1/                       # Shared API types (versioned)
+│   ├── capability/               #   CapabilityCV + Match scoring
+│   ├── chat/                     #   ChatRequest, ChatResponse, StreamChunk
+│   ├── event/                    #   Event struct + EventType constants
+│   ├── hardware/                 #   HardwareSnapshot types
+│   ├── module/                   #   ModuleType, ModuleID, ModuleHealth
+│   ├── node/                     #   NodeID, Protocol, NodeMessage
+│   ├── provider/                 #   Provider interface + ProviderConfig
+│   ├── task/                     #   Task, TaskPlan, TaskNode, TaskSpec
+│   ├── taskmsg/                  #   Wire message types for TaskBoard
+│   └── other/                    #   Legacy types (pending cleanup)
 │
-├── pkg/infrastructure_layer/  # NEW: Phase 1 foundation (in progress)
-│   ├── eventbus/            #   In-memory EventBus (done)
-│   └── transport/           #   Transport interface
-│       └── transporters/    #     libp2p implementation (done)
+├── pkg/infrastructure_layer/     # Phase 1 — Foundation
+│   ├── eventbus/                 #   In-memory EventBus
+│   ├── transport/                #   Transport interface
+│   │   └── transporters/         #     libp2p implementation
+│   ├── hardware_monitor/         #   CPU/memory polling + EventBus
+│   ├── module_manager/           #   Module registry + capability grant
+│   └── provider/                 #   ProviderController
+│       └── drivers/              #     ollama, vllm (factory + init registration)
 │
-├── internel/                # Legacy code (being ported to pkg/)
-│   └── others/
-│       ├── eventBus/        #   Legacy EventBus
-│       ├── transport/       #   Legacy libp2p transport + Postman
-│       ├── provider/        #   ProviderController + Ollama driver
-│       ├── server/          #   HTTP server (factory-based)
-│       ├── taskController/  #   Wrapper, Divider, Board stubs
-│       ├── taskReducer/     #   Reducer stubs
-│       ├── task/            #   Task model + pre-submit
-│       └── monitor/         #   Hardware monitor stubs
+├── internel/                     # Business logic
+│   ├── task_management_layer/
+│   │   ├── task_postman/         #   EventBus ↔ Transport bridge
+│   │   ├── task_state_manager/   #   Node FSM (Pending→Ready→Claimed→Running→Done)
+│   │   └── task_tracer/          #   Task observability store
+│   ├── task_workflow_layer/
+│   │   ├── task_board/           #   Publish-Lease protocol
+│   │   ├── task_planner/         #   LLM decomposition + DAG construction
+│   │   ├── task_executor/        #   Sub-task execution via provider
+│   │   └── task_reducer/         #   Output synthesis + plan completion
+│   ├── task_wrapper/             #   ChatRequest → Task conversion
+│   └── user_server/              #   HTTP ingress (chat, SSE stream, health)
 │
 ├── cmd/
-│   └── node/main.go         # Node entrypoint
+│   ├── pc/                       # **Active entrypoint** (config-driven)
+│   │   ├── main.go               #   Bootstrap + graceful shutdown
+│   │   └── plugins.go            #   Provider driver imports
+│   └── node/                     # Legacy entrypoint (commented out)
 │
-├── configs/server/          # YAML configuration
-├── docs/                    # Documentation, diagrams, paper
-└── test/                    # Integration test fixtures
+├── configs/server/               # YAML configuration
+├── scripts/                      # e2e test script
+├── docs/                         # Documentation, diagrams, pipeline
+└── go.mod
 ```
 
 ---
@@ -262,20 +298,21 @@ lucinda/
 ### Testing
 
 ```bash
-# Unit tests — EventBus (12 tests)
+# All tests
+go test ./internel/... ./pkg/...
+
+# Individual packages
 go test -v ./pkg/infrastructure_layer/eventbus/
-
-# Unit tests — Transport (16 tests)
 go test -v -timeout 90s ./pkg/infrastructure_layer/transport/transporters/
-
-# Unit tests — HardwareMonitor (9 tests)
 go test -v -timeout 30s ./pkg/infrastructure_layer/hardware_monitor/
-
-# Unit tests — ModuleManager (15 tests)
 go test -v ./pkg/infrastructure_layer/module_manager/
-
-# All tests (52 total)
-go test -count=1 -timeout 90s ./pkg/...
+go test -v ./pkg/infrastructure_layer/provider/drivers/vllm/
+go test -v ./internel/task_management_layer/task_state_manager/
+go test -v ./internel/task_management_layer/task_tracer/
+go test -v ./internel/task_management_layer/task_postman/
+go test -v ./internel/task_workflow_layer/task_board/
+go test -v ./internel/task_workflow_layer/task_planner/
+go test -v ./internel/task_workflow_layer/task_reducer/
 ```
 
 ### Implementation Roadmap
@@ -286,17 +323,17 @@ Follows a strict bottom-up build order. See [docs/pipeline.md](docs/pipeline.md)
 Phase 1 — Infrastructure ✅
   EventBus ✅ → Transport ✅ → HardwareMonitor ✅ → ModuleManager ✅ → ProviderController ✅
 
-Phase 2 — Task Management 🟡
-  TaskStateManager ✅ → TaskPostman ✅ → TaskTracer ✅ → TaskBoard ✅ → TaskScheduler
+Phase 2 — Task Management ✅
+  TaskStateManager ✅ → TaskPostman ✅ → TaskTracer ✅ → TaskBoard ✅ → CapabilityCV ✅
 
-Phase 3 — Task Workflow
-  TaskPlanner → TaskExecutor → TaskReducer
+Phase 3 — Task Workflow ✅
+  TaskPlanner ✅ → TaskExecutor ✅ → TaskReducer ✅
 
-Phase 4 — Server
-  TaskWrapper → HTTP/gRPC Server
+Phase 4 — Server ✅
+  TaskWrapper ✅ → HTTP Server ✅
 
-Phase 5 — Polish
-  Stream isolation → Plugin system → Benchmarks
+Phase 5 — Cross-Cutting 🟡
+  main.go rewrite ✅ → Stream isolation → Toolbox → Plugin system → Benchmarks
 ```
 
 ---
@@ -309,7 +346,7 @@ Phase 5 — Polish
 | Distributed scheduling | Standalone routing | No multi-node coordination | Master-worker topology | **Decentralized Publish-Lease DAG** |
 | Stream-control isolation | Logic and data coupled | Raw token capture | Generic packet handling | **Private channels + EventBus split** |
 | Agent-native pipeline | Macro flow graphs | Inference endpoint only | Generic container compute | **Native Plan-Execute-Reduce workflow** |
-| Fault tolerance | None | None | Restart-based | **TTL-lease with automatic reclamation** |
+| Fault tolerance | None | None | Restart-based | **30s TTL-lease with automatic reclamation** |
 
 ---
 

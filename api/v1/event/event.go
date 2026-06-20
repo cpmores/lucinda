@@ -31,10 +31,6 @@ const (
 	TaskCVReceived EventType = "task.cv.received"
 	TaskAssigned   EventType = "task.assigned"
 
-	// Plan lifecycle
-	PlanCreated  EventType = "plan.created"
-	PlanComplete EventType = "plan.complete"
-
 	// Hardware
 	HardwareChanged EventType = "hardware.changed"
 )

@@ -11,13 +11,16 @@ import (
 	"time"
 
 	APIEvent "github.com/cpmores/lucinda/api/v1/event"
+	APIModule "github.com/cpmores/lucinda/api/v1/module"
 	APITask "github.com/cpmores/lucinda/api/v1/task"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
+	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )
 
 var StateCheckSec int64 = 1
 
 type TaskStateManager interface {
+	RegisterWithManager(m modulemanager.ModuleManager) error
 	// ── Ingest ──────────────────────────────────────────────────────────
 	// Ingest takes a TaskPlan and initializes its state in the TaskStateManager.
 	Ingest(plan *APITask.TaskPlan) error
@@ -30,7 +33,9 @@ type TaskStateManager interface {
 	Start(taskID APITask.TaskID) error
 
 	// Complete marks a running task node as done, indicating successful completion.
-	Complete(taskID APITask.TaskID) error
+	// output is the execution result. When the last node in a plan completes
+	// and plan.Notify is set, output is sent to that channel.
+	Complete(taskID APITask.TaskID, output string) error
 
 	// Failed marks a running node as failed, allowing for retries or error handling.
 	Failed(taskID APITask.TaskID) error
@@ -76,25 +81,33 @@ func NewTaskStateManager(eventBus eventbus.EventBus) TaskStateManager {
 
 func (m *manager) Ingest(plan *APITask.TaskPlan) error {
 	m.Lock()
-	defer m.Unlock()
 
 	if m.plans[plan.ID] != nil {
+		m.Unlock()
 		return fmt.Errorf("task plan with ID %s already exists", plan.ID)
 	}
 
 	m.plans[plan.ID] = plan
 	for _, node := range plan.Nodes {
 		m.nodes[node.ID] = node
-		node.State = APITask.StatePending // default: blocked by dependencies
+		node.State = APITask.StatePending
 	}
 
-	// Publish root nodes as ready.
+	// Collect roots and set Ready under lock.
+	var roots []*APITask.TaskNode
 	for _, rootID := range plan.Roots {
 		node := plan.Nodes[rootID]
 		if node == nil {
 			continue
 		}
 		node.State = APITask.StateReady
+		roots = append(roots, node)
+	}
+	m.Unlock()
+
+	// Publish outside the lock — subscribers may call back into
+	// the StateManager (e.g. Claim), which needs the lock.
+	for _, node := range roots {
 		m.publish(APIEvent.TaskReady, node)
 	}
 
@@ -174,7 +187,7 @@ func (m *manager) Start(taskID APITask.TaskID) error {
 
 // ── Complete ──────────────────────────────────────────────────────────
 
-func (m *manager) Complete(taskID APITask.TaskID) error {
+func (m *manager) Complete(taskID APITask.TaskID, output string) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -209,6 +222,9 @@ func (m *manager) Complete(taskID APITask.TaskID) error {
 			}
 		}
 
+		if allDone(plan) && plan.Notify != nil {
+			plan.Notify <- output
+		}
 		break
 	}
 
@@ -351,3 +367,13 @@ func allDone(plan *APITask.TaskPlan) bool {
 	}
 	return true
 }
+
+func (m *manager) GetModuleType() APIModule.ModuleType { return APIModule.TASKSTATEMANAGER }
+func (m *manager) GetModuleID() APIModule.ModuleID {
+	return APIModule.NewModuleID(m.GetModuleType(), "default")
+}
+
+func (m *manager) CheckHealth() APIModule.ModuleHealth {
+	return APIModule.NewModuleHealth(m.GetModuleID(), m.GetModuleType(), APIModule.RUNNING)
+}
+func (m *manager) RegisterWithManager(mm modulemanager.ModuleManager) error { return mm.Register(m) }

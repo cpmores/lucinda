@@ -5,14 +5,18 @@ import (
 	"fmt"
 	"sync"
 
+	APIModule "github.com/cpmores/lucinda/api/v1/module"
+	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 	APITask "github.com/cpmores/lucinda/api/v1/task"
 )
 
 type TaskTracer interface {
+	RegisterWithManager(m modulemanager.ModuleManager) error
 	// Mutations — called by TaskPostman.
 	Import(task *APITask.Task) error
 	Assigned(task *APITask.Task) error
 	Remove(id APITask.TaskID) error
+	SetOutput(id APITask.TaskID, output string) error
 
 	// Queries.
 	GetLocal(id APITask.TaskID) (*APITask.Task, error)
@@ -52,6 +56,20 @@ func (t *tracer) Assigned(task *APITask.Task) error {
 	}
 	t.assigned[task.Meta.ID] = task
 	return nil
+}
+
+func (t *tracer) SetOutput(id APITask.TaskID, output string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if task, ok := t.local[id]; ok {
+		task.Spec.Output = output
+		return nil
+	}
+	if task, ok := t.assigned[id]; ok {
+		task.Spec.Output = output
+		return nil
+	}
+	return fmt.Errorf("task %s not found", id)
 }
 
 func (t *tracer) Remove(id APITask.TaskID) error {
@@ -107,3 +125,8 @@ func (t *tracer) ListAssigned() []*APITask.Task {
 	}
 	return result
 }
+
+func (t *tracer) GetModuleType() APIModule.ModuleType { return APIModule.TASKTRACER }
+func (t *tracer) GetModuleID() APIModule.ModuleID { return APIModule.NewModuleID(t.GetModuleType(), "default") }
+func (t *tracer) CheckHealth() APIModule.ModuleHealth { return APIModule.NewModuleHealth(t.GetModuleID(), t.GetModuleType(), APIModule.RUNNING) }
+func (t *tracer) RegisterWithManager(m modulemanager.ModuleManager) error { return m.Register(t) }

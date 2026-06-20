@@ -30,8 +30,8 @@ func (cv *CapabilityCV) Match(spec *apitask.TaskSpec) int {
 		}
 	}
 
-	// Model check — must have the requested model available.
-	if spec.Model != "" && !contains(cv.Models, spec.Model) {
+	// Model check — skip if not specified (any model is fine).
+	if spec.Model != "" && len(cv.Models) > 0 && !contains(cv.Models, spec.Model) {
 		return -1
 	}
 
@@ -42,8 +42,8 @@ func (cv *CapabilityCV) Match(spec *apitask.TaskSpec) int {
 		}
 	}
 
-	// Label check — at least one matching label or no labels required.
-	if len(spec.Labels) > 0 && !anyOverlap(cv.Labels, spec.Labels) {
+	// Label check — skip if CV has no labels (not configured yet).
+	if len(cv.Labels) > 0 && len(spec.Labels) > 0 && !anyOverlap(cv.Labels, spec.Labels) {
 		return -1
 	}
 

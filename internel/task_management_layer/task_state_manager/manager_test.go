@@ -185,7 +185,7 @@ func TestCompleteUnblocksSuccessors(t *testing.T) {
 	// Complete parse (first dependency of extract).
 	mgr.Claim(ctx, "parse", "peer-a", 60)
 	mgr.Start("parse")
-	if err := mgr.Complete("parse"); err != nil {
+	if err := mgr.Complete("parse", "ok"); err != nil {
 		t.Fatalf("Complete parse: %v", err)
 	}
 
@@ -198,7 +198,7 @@ func TestCompleteUnblocksSuccessors(t *testing.T) {
 	// Complete profile (second dependency of extract).
 	mgr.Claim(ctx, "profile", "peer-a", 60)
 	mgr.Start("profile")
-	mgr.Complete("profile")
+	mgr.Complete("profile", "ok")
 
 	// Now extract should be published as Ready.
 	published := drainEvents(pubCh, 1, 500*time.Millisecond)
@@ -216,7 +216,7 @@ func TestCompleteNotRunning(t *testing.T) {
 	mgr := NewTaskStateManager(eb)
 	mgr.Ingest(makePlan())
 
-	if err := mgr.Complete("parse"); err == nil {
+	if err := mgr.Complete("parse", "ok"); err == nil {
 		t.Fatal("expected error completing non-running node")
 	}
 }
@@ -316,26 +316,26 @@ func TestIsComplete(t *testing.T) {
 	for _, id := range []APITask.TaskID{"parse", "profile"} {
 		mgr.Claim(ctx, id, "peer-a", 60)
 		mgr.Start(id)
-		mgr.Complete(id)
+		mgr.Complete(id, "ok")
 	}
 
 	// Drain extract publish.
 	drainEvents(pubCh, 1, 500*time.Millisecond)
 	mgr.Claim(ctx, "extract", "peer-a", 60)
 	mgr.Start("extract")
-	mgr.Complete("extract")
+	mgr.Complete("extract", "ok")
 
 	// Drain analyze publish.
 	drainEvents(pubCh, 1, 500*time.Millisecond)
 	mgr.Claim(ctx, "analyze", "peer-a", 60)
 	mgr.Start("analyze")
-	mgr.Complete("analyze")
+	mgr.Complete("analyze", "ok")
 
 	// Drain reduce publish.
 	drainEvents(pubCh, 1, 500*time.Millisecond)
 	mgr.Claim(ctx, "reduce", "peer-a", 60)
 	mgr.Start("reduce")
-	mgr.Complete("reduce")
+	mgr.Complete("reduce", "ok")
 
 	done, _ = mgr.IsComplete("plan-1")
 	if !done {
@@ -386,10 +386,10 @@ func TestIdempotentStartAndComplete(t *testing.T) {
 		t.Fatalf("second Start should be idempotent: %v", err)
 	}
 
-	mgr.Complete("parse")
+	mgr.Complete("parse", "ok")
 
 	// Second Complete should be a no-op.
-	if err := mgr.Complete("parse"); err != nil {
+	if err := mgr.Complete("parse", "ok"); err != nil {
 		t.Fatalf("second Complete should be idempotent: %v", err)
 	}
 }

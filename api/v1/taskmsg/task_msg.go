@@ -32,15 +32,23 @@ func TaskCVToTaskRequestMsg(cv *apicapability.CapabilityCV) TaskRequestMsg {
 // TaskAssignMsg is sent by the TaskBoard to award a task to the winning peer.
 // Includes the prompt — the heavy payload — sent only to the winner, not broadcast.
 type TaskAssignMsg struct {
-	NodeID apitask.TaskID `json:"node_id"`
-	TTL    int64          `json:"ttl"`
-	Prompt string         `json:"prompt"`
+	NodeID apitask.TaskID   `json:"node_id"`
+	TTL    int64            `json:"ttl"`
+	Prompt string           `json:"prompt"`
+	Spec   apitask.TaskSpec `json:"spec"`
 }
 
 func TaskToTaskAssignMsg(task *apitask.Task) TaskAssignMsg {
 	return TaskAssignMsg{
 		NodeID: task.Meta.ID,
 		TTL:    task.Spec.Deadline,
-		Prompt: task.Prompt,
+		Prompt: task.Spec.Prompt,
+		Spec:   task.Spec,
 	}
+}
+
+// TaskResultMsg is sent by the executor back to the origin with the output.
+type TaskResultMsg struct {
+	NodeID apitask.TaskID `json:"node_id"`
+	Output string         `json:"output"`
 }

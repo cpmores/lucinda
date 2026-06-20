@@ -6,7 +6,6 @@ type TaskID string
 type Task struct {
 	Meta     TaskMeta
 	Spec     TaskSpec
-	Prompt   string
 	TaskPlan *TaskPlan
 	TaskNode *TaskNode
 }
