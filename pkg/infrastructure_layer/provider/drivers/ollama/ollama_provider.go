@@ -97,6 +97,12 @@ func NewOllamaProvider(config APIProvider.ProviderConfig) (*OllamaProvider, erro
 func (p *OllamaProvider) GetID() string                     { return p.id }
 func (p *OllamaProvider) GetType() APIProvider.ProviderType { return APIProvider.LOCAL }
 func (p *OllamaProvider) GetModels() []string               { return p.models }
+func (p *OllamaProvider) MaxContextTokens() int {
+	if p.config.MaxContextTokens > 0 {
+		return p.config.MaxContextTokens
+	}
+	return 2048
+}
 func (p *OllamaProvider) GetCreatedAt() int64               { return p.createdAt }
 
 func (p *OllamaProvider) GetInfo() APIProvider.ProviderInfo {

@@ -6,6 +6,7 @@ provider_controller:
       driver: "vllm"
       host: "localhost"
       port: 8000
+      max_context_tokens: 2048
       models:
         - "qwen-2.5-gptq"
 

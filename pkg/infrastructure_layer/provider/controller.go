@@ -21,6 +21,7 @@ type ProviderController interface {
 	Get(id string) (APIProvider.Provider, error)
 	List() []APIProvider.Provider
 	GetPlanProv() (APIProvider.Provider, error) // first available provider for planning
+	MaxContext() int                             // context window of the first available provider
 	Health(id string) (APIProvider.ProviderHealth, error)
 	HealthAll() []APIProvider.ProviderHealth
 	GPU() APIHardware.GPUSnapshot
@@ -104,6 +105,16 @@ func (c *controller) GetPlanProv() (APIProvider.Provider, error) {
 		return nil, fmt.Errorf("no provider available for planning")
 	}
 	return list[0], nil
+}
+
+// MaxContext returns the context window size of the first available provider,
+// or 2048 as a safe default if no provider is configured.
+func (c *controller) MaxContext() int {
+	list := c.List()
+	if len(list) == 0 {
+		return 2048
+	}
+	return list[0].MaxContextTokens()
 }
 
 // Health returns the health status of a provider by its ID.

@@ -133,6 +133,12 @@ func NewVLLMProvider(config APIProvider.ProviderConfig) (*VLLMProvider, error) {
 func (p *VLLMProvider) GetID() string                     { return p.id }
 func (p *VLLMProvider) GetType() APIProvider.ProviderType { return APIProvider.CLOUD }
 func (p *VLLMProvider) GetModels() []string               { return p.models }
+func (p *VLLMProvider) MaxContextTokens() int {
+	if p.config.MaxContextTokens > 0 {
+		return p.config.MaxContextTokens
+	}
+	return 2048
+}
 func (p *VLLMProvider) GetCreatedAt() int64               { return p.createdAt }
 
 func (p *VLLMProvider) GetInfo() APIProvider.ProviderInfo {

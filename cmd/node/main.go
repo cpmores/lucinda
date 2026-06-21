@@ -8,16 +8,16 @@ package main
 // 	"os/signal"
 // 	"syscall"
 //
-// 	eventbus "github.com/cpmores/lucinda/internel/eventBus"
-// 	"github.com/cpmores/lucinda/internel/provider"
-// 	server "github.com/cpmores/lucinda/internel/server"
-// 	taskcontroller "github.com/cpmores/lucinda/internel/taskController"
-// 	"github.com/cpmores/lucinda/internel/transport"
+// 	eventbus "github.com/cpmores/lucinda/internal/eventBus"
+// 	"github.com/cpmores/lucinda/internal/provider"
+// 	server "github.com/cpmores/lucinda/internal/server"
+// 	taskcontroller "github.com/cpmores/lucinda/internal/taskController"
+// 	"github.com/cpmores/lucinda/internal/transport"
 // 	"github.com/spf13/viper"
 // 	"golang.org/x/sync/errgroup"
 //
 // 	// libp2p transport init
-// 	_ "github.com/cpmores/lucinda/internel/transport/libp2p"
+// 	_ "github.com/cpmores/lucinda/internal/transport/libp2p"
 // )
 //
 // func setupEnvironment() error {

@@ -35,10 +35,13 @@ func (cv *CapabilityCV) Match(spec *apitask.TaskSpec) int {
 		return -1
 	}
 
-	// Tool check — all required tools must be present.
-	for _, t := range spec.Tools {
-		if !contains(cv.Tools, t) {
-			return -1
+	// Tool check — skip if CV has no tools (toolbox not implemented yet).
+	// Once tools are available, all required tools must be present.
+	if len(cv.Tools) > 0 {
+		for _, t := range spec.Tools {
+			if !contains(cv.Tools, t) {
+				return -1
+			}
 		}
 	}
 

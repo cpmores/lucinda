@@ -38,7 +38,7 @@ The architecture of Lucinda is strictly separated into four highly cohesive laye
 
 ### B. TaskBoard with a Publish-Lease Protocol: Real-time Task Interview
 
-To eliminate distributed race conditions without a heavy centralized lock manager, Lucinda implements a Publish-Lease protocol on the shared TaskBoard. When a sub-task DAG is generated, its nodes are injected onto the board in a Pending state. Peer workers run internel “Task Interviews”. matching task hardware demands against their current capability envelopes. Upon selection, the TaskBoard issues a temporary Lease bound to a strict Time-To-Live (TTL). The worker must continuously emit low-overhead heartbeats; if a node suffers sudden compute starvation or goes offline, the lease silently expires, and the TaskBoard automatically reverts the sub-task back to Pending for peer reclamation, achieving fault-tolerance.
+To eliminate distributed race conditions without a heavy centralized lock manager, Lucinda implements a Publish-Lease protocol on the shared TaskBoard. When a sub-task DAG is generated, its nodes are injected onto the board in a Pending state. Peer workers run internal "Task Interviews", matching task hardware demands against their current capability envelopes. Upon selection, the TaskBoard issues a temporary Lease bound to a strict Time-To-Live (TTL). The worker must continuously emit low-overhead heartbeats; if a node suffers sudden compute starvation or goes offline, the lease silently expires, and the TaskBoard automatically reverts the sub-task back to Pending for peer reclamation, achieving fault-tolerance.
 
 ### C. Service Module: Multi-Attribute Adaptive Dispatching Framework 
 

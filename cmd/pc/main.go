@@ -17,14 +17,14 @@ import (
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 	provider "github.com/cpmores/lucinda/pkg/infrastructure_layer/provider"
 	transport "github.com/cpmores/lucinda/pkg/infrastructure_layer/transport/transporters"
-	taskpostman "github.com/cpmores/lucinda/internel/task_management_layer/task_postman"
-	taskstatemanager "github.com/cpmores/lucinda/internel/task_management_layer/task_state_manager"
-	tasktracer "github.com/cpmores/lucinda/internel/task_management_layer/task_tracer"
-	taskboard "github.com/cpmores/lucinda/internel/task_workflow_layer/task_board"
-	taskexecutor "github.com/cpmores/lucinda/internel/task_workflow_layer/task_executor"
-	taskplanner "github.com/cpmores/lucinda/internel/task_workflow_layer/task_planner"
-	taskreducer "github.com/cpmores/lucinda/internel/task_workflow_layer/task_reducer"
-	userserver "github.com/cpmores/lucinda/internel/user_server"
+	taskpostman "github.com/cpmores/lucinda/internal/task_management_layer/task_postman"
+	taskstatemanager "github.com/cpmores/lucinda/internal/task_management_layer/task_state_manager"
+	tasktracer "github.com/cpmores/lucinda/internal/task_management_layer/task_tracer"
+	taskboard "github.com/cpmores/lucinda/internal/task_workflow_layer/task_board"
+	taskexecutor "github.com/cpmores/lucinda/internal/task_workflow_layer/task_executor"
+	taskplanner "github.com/cpmores/lucinda/internal/task_workflow_layer/task_planner"
+	taskreducer "github.com/cpmores/lucinda/internal/task_workflow_layer/task_reducer"
+	userserver "github.com/cpmores/lucinda/internal/user_server"
 )
 
 func loadConfig() (*viper.Viper, error) {

@@ -17,6 +17,10 @@ type Provider interface {
 	GetModels()    []string
 	GetInfo()      ProviderInfo
 
+	// MaxContextTokens returns the maximum context size (input + output tokens)
+	// the model can handle. Used by the planner and reducer to stay within limits.
+	MaxContextTokens() int
+
 	GPU()    (apihardware.GPUSnapshot, error)
 	Health() ProviderHealth
 
@@ -80,6 +84,7 @@ type ProviderConfig struct {
 	APIKey  string            `mapstructure:"api_key"`  // empty for ollama
 	Headers map[string]string `mapstructure:"headers"`  // extra headers
 	Models  []string          `mapstructure:"models"`
-	TotalVRAM int64            `mapstructure:"total_vram"` // physical GPU VRAM in bytes
-	Timeout   int               `mapstructure:"timeout"`    // seconds between polls/retries
+	TotalVRAM         int64 `mapstructure:"total_vram"`          // physical GPU VRAM in bytes
+	MaxContextTokens  int   `mapstructure:"max_context_tokens"`  // model context window (default 2048)
+	Timeout           int   `mapstructure:"timeout"`             // seconds between polls/retries
 }
