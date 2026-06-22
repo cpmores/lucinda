@@ -3,6 +3,26 @@ package apitask
 
 import "time"
 
+// ── PlanResult ────────────────────────────────────────────────────────
+
+// PlanStatus is the termination status of a plan.
+type PlanStatus string
+
+const (
+	PlanOK        PlanStatus = "ok"
+	PlanError     PlanStatus = "error"
+	PlanTimeout   PlanStatus = "timeout"
+	PlanCancelled PlanStatus = "cancelled"
+)
+
+// PlanResult is sent to the Notify channel when a plan terminates
+// (successfully or otherwise). Every termination path must send exactly
+// one PlanResult so the SSE handler never blocks forever.
+type PlanResult struct {
+	Status PlanStatus `json:"status"`
+	Text   string     `json:"text"`
+}
+
 // ── TaskPlan ──────────────────────────────────────────────────────────
 
 // TaskPlan is a decomposed macro-task ready for the TaskBoard.
@@ -23,7 +43,7 @@ type TaskPlan struct {
 	CreatedAt time.Time `json:"created_at"`
 
 	// ── Callback ─────────────────────────────────────────────────────────
-	Notify chan<- string `json:"-"` // send final output here when plan completes
+	Notify chan<- PlanResult `json:"-"` // terminal notification — sent exactly once per plan
 }
 
 // TaskNode is a single sub-task in the DAG.

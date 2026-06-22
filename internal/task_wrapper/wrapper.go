@@ -21,7 +21,7 @@ func New(eb eventbus.EventBus) *TaskWrapper {
 
 // Wrap creates a Task from a user prompt and publishes TaskPreplaned.
 // Returns the tracking ID so the caller can open an SSE stream.
-func (w *TaskWrapper) Wrap(prompt string, owner string, notify chan<- string) (APITask.TaskID, error) {
+func (w *TaskWrapper) Wrap(prompt string, owner string, notify chan<- APITask.PlanResult) (APITask.TaskID, error) {
 	planID := APITask.TaskID(fmt.Sprintf("plan-%d", time.Now().UnixNano()))
 
 	task := &APITask.Task{
