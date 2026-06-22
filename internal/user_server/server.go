@@ -16,16 +16,16 @@ import (
 )
 
 type Server struct {
-	wrapper  *taskwrapper.TaskWrapper
-	streams  map[APITask.TaskID]chan string
-	mu       sync.Mutex
-	httpSrv  *http.Server
+	wrapper *taskwrapper.TaskWrapper
+	streams map[APITask.TaskID]chan APITask.PlanResult
+	mu      sync.Mutex
+	httpSrv *http.Server
 }
 
 func New(eb eventbus.EventBus) *Server {
 	return &Server{
 		wrapper: taskwrapper.New(eb),
-		streams: make(map[APITask.TaskID]chan string),
+		streams: make(map[APITask.TaskID]chan APITask.PlanResult),
 	}
 }
 
@@ -59,14 +59,16 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		req.Owner = "anonymous"
 	}
 
-	ch := make(chan string, 1)
+	ch := make(chan APITask.PlanResult, 1)
 	id, err := s.wrapper.Wrap(req.Prompt, req.Owner, ch)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	s.mu.Lock()
 	s.streams[id] = ch
+	s.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"tracking_id": string(id)})
@@ -79,7 +81,9 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.mu.Lock()
 	ch, ok := s.streams[planID]
+	s.mu.Unlock()
 	if !ok {
 		http.Error(w, "plan not found", http.StatusNotFound)
 		return
@@ -95,14 +99,32 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Stream the final output when it arrives.
-	output := <-ch
-	fmt.Fprintf(w, "data: {\"type\":\"result\",\"text\":%s}\n\n", jsonEscape(output))
+	// Wait for the plan to terminate, or the client to disconnect.
+	var result APITask.PlanResult
+	select {
+	case result = <-ch:
+	case <-r.Context().Done():
+		// Client disconnected — clean up and return.
+		s.mu.Lock()
+		delete(s.streams, planID)
+		s.mu.Unlock()
+		return
+	}
+
+	switch result.Status {
+	case APITask.PlanOK:
+		fmt.Fprintf(w, "data: {\"type\":\"result\",\"text\":%s}\n\n", jsonEscape(result.Text))
+	case APITask.PlanError, APITask.PlanTimeout, APITask.PlanCancelled:
+		fmt.Fprintf(w, "data: {\"type\":\"error\",\"status\":\"%s\",\"text\":%s}\n\n",
+			result.Status, jsonEscape(result.Text))
+	}
 	flusher.Flush()
 	fmt.Fprintf(w, "data: {\"type\":\"done\"}\n\n")
 	flusher.Flush()
 
+	s.mu.Lock()
 	delete(s.streams, planID)
+	s.mu.Unlock()
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

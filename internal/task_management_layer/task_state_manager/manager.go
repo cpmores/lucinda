@@ -105,6 +105,10 @@ func (m *manager) Ingest(plan *APITask.TaskPlan) error {
 	}
 	m.Unlock()
 
+	// Start the deadline goroutine before publishing roots so the
+	// timer is already running when nodes begin executing.
+	m.startDeadlineWatch(plan)
+
 	// Publish outside the lock — subscribers may call back into
 	// the StateManager (e.g. Claim), which needs the lock.
 	for _, node := range roots {
@@ -223,7 +227,7 @@ func (m *manager) Complete(taskID APITask.TaskID, output string) error {
 		}
 
 		if allDone(plan) && plan.Notify != nil {
-			plan.Notify <- output
+			plan.Notify <- APITask.PlanResult{Status: APITask.PlanOK, Text: output}
 		}
 		break
 	}
@@ -377,3 +381,46 @@ func (m *manager) CheckHealth() APIModule.ModuleHealth {
 	return APIModule.NewModuleHealth(m.GetModuleID(), m.GetModuleType(), APIModule.RUNNING)
 }
 func (m *manager) RegisterWithManager(mm modulemanager.ModuleManager) error { return mm.Register(m) }
+
+// startDeadlineWatch spawns a goroutine that fires when the plan's
+// deadline passes. If the plan hasn't completed by then, it sends a
+// timeout notification and disposes all remaining nodes.
+func (m *manager) startDeadlineWatch(plan *APITask.TaskPlan) {
+	if plan.Deadline.IsZero() || plan.Notify == nil {
+		return
+	}
+	go func() {
+		delay := time.Until(plan.Deadline)
+		if delay <= 0 {
+			delay = 1 // already past — fire immediately
+		}
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+
+		<-timer.C
+
+		m.Lock()
+		done := allDone(plan)
+		if !done {
+			// Mark remaining nodes as disposed.
+			for _, node := range plan.Nodes {
+				switch node.State {
+				case APITask.StateDone, APITask.StateDisposed, APITask.StateFailed:
+					continue
+				default:
+					node.State = APITask.StateDisposed
+					node.ClaimedBy = ""
+					node.ExpiresAt = 0
+					delete(m.claimed, node.ID)
+				}
+			}
+			m.Unlock()
+			plan.Notify <- APITask.PlanResult{
+				Status: APITask.PlanTimeout,
+				Text:   fmt.Sprintf("plan %s deadline exceeded", plan.ID),
+			}
+			return
+		}
+		m.Unlock()
+	}()
+}
