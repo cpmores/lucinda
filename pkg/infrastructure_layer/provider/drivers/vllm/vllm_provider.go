@@ -131,7 +131,7 @@ func NewVLLMProvider(config APIProvider.ProviderConfig) (*VLLMProvider, error) {
 // ── Info ──────────────────────────────────────────────────────────────
 
 func (p *VLLMProvider) GetID() string                     { return p.id }
-func (p *VLLMProvider) GetType() APIProvider.ProviderType { return APIProvider.CLOUD }
+func (p *VLLMProvider) GetType() APIProvider.ProviderType { return APIProvider.Cloud }
 func (p *VLLMProvider) GetModels() []string               { return p.models }
 func (p *VLLMProvider) MaxContextTokens() int {
 	if p.config.MaxContextTokens > 0 {
@@ -144,7 +144,7 @@ func (p *VLLMProvider) GetCreatedAt() int64               { return p.createdAt }
 func (p *VLLMProvider) GetInfo() APIProvider.ProviderInfo {
 	return APIProvider.ProviderInfo{
 		ID:        p.id,
-		Type:      APIProvider.CLOUD,
+		Type:      APIProvider.Cloud,
 		Models:    p.models,
 		CreatedAt: p.createdAt,
 	}
@@ -162,7 +162,7 @@ func (p *VLLMProvider) Health() APIProvider.ProviderHealth {
 	if resp.StatusCode == http.StatusOK {
 		return APIProvider.ProviderHealth{
 			ID:        p.nextEventID(),
-			Status:    APIProvider.FREE,
+			Status:    APIProvider.Free,
 			Timestamp: time.Now().Unix(),
 		}
 	}
@@ -405,7 +405,7 @@ func parseResponseContent(raw json.RawMessage) []APIChat.ContentPart {
 func (p *VLLMProvider) errorHealth(errMsg string) APIProvider.ProviderHealth {
 	return APIProvider.ProviderHealth{
 		ID:        p.nextEventID(),
-		Status:    APIProvider.ERROR,
+		Status:    APIProvider.Error,
 		Timestamp: time.Now().Unix(),
 		Error:     errMsg,
 	}

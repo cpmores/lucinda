@@ -9,7 +9,7 @@ import (
 
 	APIEvent "github.com/cpmores/lucinda/api/v1/event"
 	APIModule "github.com/cpmores/lucinda/api/v1/module"
-	apinode "github.com/cpmores/lucinda/api/v1/node"
+	APINode "github.com/cpmores/lucinda/api/v1/node"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/transport"
@@ -21,7 +21,7 @@ type Postman interface {
 	RegisterWithManager(m modulemanager.ModuleManager) error
 	Publish(topic APIEvent.EventType, event APIEvent.Event) error
 	Watch(ctx context.Context, topic APIEvent.EventType, handler APIEvent.EventOnComplete) error
-	Deliver(ctx context.Context, tp transport.Transport, protocol apinode.Protocol) error
+	Deliver(ctx context.Context, tp transport.Transport, protocol APINode.Protocol) error
 	Stop()
 }
 
@@ -70,7 +70,7 @@ func (p *postman) Watch(ctx context.Context, topic APIEvent.EventType, handler A
 
 // Deliver reads incoming messages from a Transport protocol and publishes
 // their Body to an EventBus topic. This bridges network → EventBus.
-func (p *postman) Deliver(ctx context.Context, tp transport.Transport, protocol apinode.Protocol) error {
+func (p *postman) Deliver(ctx context.Context, tp transport.Transport, protocol APINode.Protocol) error {
 	ch, err := tp.Incoming(protocol)
 	if err != nil {
 		return fmt.Errorf("deliver: %w", err)
@@ -118,6 +118,6 @@ func (p *postman) GetModuleID() APIModule.ModuleID {
 }
 
 func (p *postman) CheckHealth() APIModule.ModuleHealth {
-	return APIModule.NewModuleHealth(p.GetModuleID(), p.GetModuleType(), APIModule.RUNNING)
+	return APIModule.NewModuleHealth(p.GetModuleID(), p.GetModuleType(), APIModule.Running)
 }
 func (p *postman) RegisterWithManager(m modulemanager.ModuleManager) error { return m.Register(p) }

@@ -1,4 +1,4 @@
-// Package apinode provides structures for node information and node messagesinfro
+// Package apinode provides structures for node information and node messages.
 package apinode
 
 // NodeID is a unique identifier for a node in the network

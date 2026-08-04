@@ -128,5 +128,5 @@ func (t *tracer) ListAssigned() []*APITask.Task {
 
 func (t *tracer) GetModuleType() APIModule.ModuleType { return APIModule.TASKTRACER }
 func (t *tracer) GetModuleID() APIModule.ModuleID { return APIModule.NewModuleID(t.GetModuleType(), "default") }
-func (t *tracer) CheckHealth() APIModule.ModuleHealth { return APIModule.NewModuleHealth(t.GetModuleID(), t.GetModuleType(), APIModule.RUNNING) }
+func (t *tracer) CheckHealth() APIModule.ModuleHealth { return APIModule.NewModuleHealth(t.GetModuleID(), t.GetModuleType(), APIModule.Running) }
 func (t *tracer) RegisterWithManager(m modulemanager.ModuleManager) error { return m.Register(t) }

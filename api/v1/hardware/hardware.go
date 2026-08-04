@@ -4,10 +4,10 @@
 package apihardware
 
 type HardwareSnapshot struct {
-	Timestamp      int64 `json:"timestamp"`
-	CPUSnapshot    CPUSnapshot
-	MemorySnapshot MemorySnapshot
-	GPUSnapshot    []GPUSnapshot
+	Timestamp      int64          `json:"timestamp"`
+	CPUSnapshot    CPUSnapshot    `json:"cpu"`
+	MemorySnapshot MemorySnapshot `json:"memory"`
+	GPUSnapshot    []GPUSnapshot  `json:"gpu"`
 }
 
 type CPUSnapshot struct {

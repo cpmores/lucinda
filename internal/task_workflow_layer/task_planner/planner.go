@@ -78,7 +78,7 @@ func NewTaskPlanner(mod modulemanager.ModuleManager) TaskPlanner {
 func (p *planner) Start(ctx context.Context) error {
 	ctx, p.cancel = context.WithCancel(ctx)
 	// Start watching for a new task to plan
-	p.pm.Watch(ctx, APIEvent.TaskPreplaned, func(data any) error {
+	p.pm.Watch(ctx, APIEvent.TaskPreplanned, func(data any) error {
 		task, ok := data.(*APITask.Task)
 		if !ok {
 			return nil
@@ -300,7 +300,7 @@ func (p *planner) GetModuleID() APIModule.ModuleID {
 }
 
 func (p *planner) CheckHealth() APIModule.ModuleHealth {
-	return APIModule.NewModuleHealth(p.GetModuleID(), p.GetModuleType(), APIModule.RUNNING)
+	return APIModule.NewModuleHealth(p.GetModuleID(), p.GetModuleType(), APIModule.Running)
 }
 
 func (p *planner) RegisterWithManager(m modulemanager.ModuleManager) error {

@@ -143,13 +143,13 @@ func TestHealth(t *testing.T) {
 	mgr.Register(&stubModule{
 		id:  "mod-1",
 		typ: APIModule.EVENTBUS,
-		health: APIModule.ModuleHealth{Status: APIModule.RUNNING},
+		health: APIModule.ModuleHealth{Status: APIModule.Running},
 	})
 	h, err := mgr.Health("mod-1")
 	if err != nil {
 		t.Fatalf("Health: %v", err)
 	}
-	if h.Status != APIModule.RUNNING {
+	if h.Status != APIModule.Running {
 		t.Fatalf("expected RUNNING, got %s", h.Status)
 	}
 }
@@ -163,8 +163,8 @@ func TestHealthNotFound(t *testing.T) {
 
 func TestHealthAll(t *testing.T) {
 	mgr := NewModuleManager()
-	mgr.Register(&stubModule{id: "a", typ: APIModule.EVENTBUS, health: APIModule.ModuleHealth{Status: APIModule.RUNNING}})
-	mgr.Register(&stubModule{id: "b", typ: APIModule.TRANSPORT, health: APIModule.ModuleHealth{Status: APIModule.STOPPED}})
+	mgr.Register(&stubModule{id: "a", typ: APIModule.EVENTBUS, health: APIModule.ModuleHealth{Status: APIModule.Running}})
+	mgr.Register(&stubModule{id: "b", typ: APIModule.TRANSPORT, health: APIModule.ModuleHealth{Status: APIModule.Stopped}})
 	all := mgr.HealthAll()
 	if len(all) != 2 {
 		t.Fatalf("expected 2, got %d", len(all))

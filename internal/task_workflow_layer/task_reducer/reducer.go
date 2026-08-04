@@ -204,7 +204,7 @@ func (r *reducer) GetModuleID() APIModule.ModuleID {
 }
 
 func (r *reducer) CheckHealth() APIModule.ModuleHealth {
-	return APIModule.NewModuleHealth(r.GetModuleID(), r.GetModuleType(), APIModule.RUNNING)
+	return APIModule.NewModuleHealth(r.GetModuleID(), r.GetModuleType(), APIModule.Running)
 }
 func (r *reducer) RegisterWithManager(m modulemanager.ModuleManager) error { return m.Register(r) }
 

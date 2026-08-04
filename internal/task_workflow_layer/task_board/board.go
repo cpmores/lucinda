@@ -13,9 +13,9 @@ import (
 
 	APICapability "github.com/cpmores/lucinda/api/v1/capability"
 	APIEvent "github.com/cpmores/lucinda/api/v1/event"
-	apihardware "github.com/cpmores/lucinda/api/v1/hardware"
+	APIHardware "github.com/cpmores/lucinda/api/v1/hardware"
 	APIModule "github.com/cpmores/lucinda/api/v1/module"
-	apinode "github.com/cpmores/lucinda/api/v1/node"
+	APINode "github.com/cpmores/lucinda/api/v1/node"
 	APITask "github.com/cpmores/lucinda/api/v1/task"
 	APITaskmsg "github.com/cpmores/lucinda/api/v1/taskmsg"
 	taskpostman "github.com/cpmores/lucinda/internal/task_management_layer/task_postman"
@@ -233,11 +233,11 @@ func (b *board) Putup(taskID APITask.TaskID) error {
 	b.myAds[taskID] = &ad
 	b.mu.Unlock()
 
-	b.tp.Publish(context.Background(), apinode.NewNodeMessage(
+	b.tp.Publish(context.Background(), APINode.NewNodeMessage(
 		TaskBoardProtocol,
 		string(APIEvent.TaskAdReceived),
-		apinode.NodeID(""),
-		apinode.NodeID(""),
+		APINode.NodeID(""),
+		APINode.NodeID(""),
 		APITaskmsg.TaskAdToTaskBroadcastMsg(&ad),
 	))
 	b.Drawup(&ad)
@@ -319,11 +319,11 @@ func (b *board) Interview(taskID APITask.TaskID) (*APICapability.CapabilityCV, e
 		b.pm.Publish(APIEvent.TaskAssigned, APIEvent.NewEvent(APIEvent.TaskAssigned, assign))
 	} else {
 		// Remote winner — send assignment via Transport.
-		b.tp.Send(context.Background(), apinode.NodeID(winner.PeerID),
-			apinode.NewNodeMessage(TaskBoardProtocol,
+		b.tp.Send(context.Background(), APINode.NodeID(winner.PeerID),
+			APINode.NewNodeMessage(TaskBoardProtocol,
 				string(APIEvent.TaskAssigned),
 				b.tp.ID(),
-				apinode.NodeID(winner.PeerID),
+				APINode.NodeID(winner.PeerID),
 				assign,
 			))
 	}
@@ -391,7 +391,7 @@ func (b *board) submitBid(ad APITask.TaskAd) {
 }
 
 func (b *board) buildCV(ad APITask.TaskAd) *APICapability.CapabilityCV {
-	var hw apihardware.HardwareSnapshot
+	var hw APIHardware.HardwareSnapshot
 	if b.hm != nil {
 		hw = b.hm.Snapshot()
 	}
@@ -403,7 +403,7 @@ func (b *board) buildCV(ad APITask.TaskAd) *APICapability.CapabilityCV {
 		// HACK: use a goroutine + channel to avoid blocking in case
 		// the underlying client doesn't respect the context quickly.
 		type gpuResult struct {
-			snap apihardware.GPUSnapshot
+			snap APIHardware.GPUSnapshot
 		}
 		ch := make(chan gpuResult, 1)
 		go func() { ch <- gpuResult{b.pc.GPU()} }()
@@ -435,6 +435,6 @@ func (b *board) GetModuleID() APIModule.ModuleID {
 }
 
 func (b *board) CheckHealth() APIModule.ModuleHealth {
-	return APIModule.NewModuleHealth(b.GetModuleID(), b.GetModuleType(), APIModule.RUNNING)
+	return APIModule.NewModuleHealth(b.GetModuleID(), b.GetModuleType(), APIModule.Running)
 }
 func (b *board) RegisterWithManager(m modulemanager.ModuleManager) error { return m.Register(b) }

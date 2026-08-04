@@ -6,7 +6,7 @@ package apimodule
 type (
 	// ModuleType represents the type of a module, such as "eventbus" or "transport"
 	ModuleType string
-	// ModuleID represnets the identifier for a module, such as "transport-libp2p" or "eventbus-nats"
+	// ModuleID represents the identifier for a module, such as "transport-libp2p" or "eventbus-nats"
 	ModuleID string
 	// ModuleStatus represents the current status of a module, such as "running", "stopped", or "error"
 	ModuleStatus string
@@ -33,11 +33,11 @@ const (
 
 // Module Status
 const (
-	INITIALIZING ModuleStatus = "initializing"
-	RUNNING      ModuleStatus = "running"
-	PENDING      ModuleStatus = "pending"
-	STOPPED      ModuleStatus = "stopped"
-	ERROR        ModuleStatus = "error"
+	Initializing ModuleStatus = "initializing"
+	Running      ModuleStatus = "running"
+	Pending      ModuleStatus = "pending"
+	Stopped      ModuleStatus = "stopped"
+	Error        ModuleStatus = "error"
 )
 
 // Module is the interface every component must implement to register with the ModuleManager.

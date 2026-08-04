@@ -161,9 +161,9 @@ func (c *controller) GetModuleID() APIModule.ModuleID {
 }
 
 func (c *controller) CheckHealth() APIModule.ModuleHealth {
-	status := APIModule.RUNNING
+	status := APIModule.Running
 	if len(c.providers) == 0 {
-		status = APIModule.PENDING
+		status = APIModule.Pending
 	}
 	return APIModule.NewModuleHealth(c.GetModuleID(), c.GetModuleType(), status)
 }

@@ -362,7 +362,7 @@ func (m *manager) GetModuleID() APIModule.ModuleID {
 }
 
 func (m *manager) CheckHealth() APIModule.ModuleHealth {
-	return APIModule.NewModuleHealth(m.GetModuleID(), m.GetModuleType(), APIModule.RUNNING)
+	return APIModule.NewModuleHealth(m.GetModuleID(), m.GetModuleType(), APIModule.Running)
 }
 func (m *manager) RegisterWithManager(mm modulemanager.ModuleManager) error { return mm.Register(m) }
 

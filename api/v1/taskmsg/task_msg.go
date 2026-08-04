@@ -2,17 +2,17 @@
 package apitaskmsg
 
 import (
-	apicapability "github.com/cpmores/lucinda/api/v1/capability"
-	apitask "github.com/cpmores/lucinda/api/v1/task"
+	APICapability "github.com/cpmores/lucinda/api/v1/capability"
+	APITask "github.com/cpmores/lucinda/api/v1/task"
 )
 
 // TaskBroadcastMsg is published by the TaskBoard when a node becomes Ready.
 // All peers receive it and evaluate whether to bid.
 type TaskBroadcastMsg struct {
-	Ad apitask.TaskAd `json:"ad"`
+	Ad APITask.TaskAd `json:"ad"`
 }
 
-func TaskAdToTaskBroadcastMsg(ad *apitask.TaskAd) TaskBroadcastMsg {
+func TaskAdToTaskBroadcastMsg(ad *APITask.TaskAd) TaskBroadcastMsg {
 	return TaskBroadcastMsg{
 		Ad: *ad,
 	}
@@ -20,10 +20,10 @@ func TaskAdToTaskBroadcastMsg(ad *apitask.TaskAd) TaskBroadcastMsg {
 
 // TaskRequestMsg is sent by a peer to submit a capability bid on an ad.
 type TaskRequestMsg struct {
-	CV apicapability.CapabilityCV `json:"cv"`
+	CV APICapability.CapabilityCV `json:"cv"`
 }
 
-func TaskCVToTaskRequestMsg(cv *apicapability.CapabilityCV) TaskRequestMsg {
+func TaskCVToTaskRequestMsg(cv *APICapability.CapabilityCV) TaskRequestMsg {
 	return TaskRequestMsg{
 		CV: *cv,
 	}
@@ -32,14 +32,14 @@ func TaskCVToTaskRequestMsg(cv *apicapability.CapabilityCV) TaskRequestMsg {
 // TaskAssignMsg is sent by the TaskBoard to award a task to the winning peer.
 // Includes the prompt — the heavy payload — sent only to the winner, not broadcast.
 type TaskAssignMsg struct {
-	NodeID       apitask.TaskID   `json:"node_id"`
+	NodeID       APITask.TaskID   `json:"node_id"`
 	OriginNodeID string           `json:"origin_node_id"` // node that owns the plan — send results here
 	TTL          int64            `json:"ttl"`
 	Prompt       string           `json:"prompt"`
-	Spec         apitask.TaskSpec `json:"spec"`
+	Spec         APITask.TaskSpec `json:"spec"`
 }
 
-func TaskToTaskAssignMsg(task *apitask.Task) TaskAssignMsg {
+func TaskToTaskAssignMsg(task *APITask.Task) TaskAssignMsg {
 	return TaskAssignMsg{
 		NodeID: task.Meta.ID,
 		TTL:    task.Spec.Deadline,
@@ -50,6 +50,6 @@ func TaskToTaskAssignMsg(task *apitask.Task) TaskAssignMsg {
 
 // TaskResultMsg is sent by the executor back to the origin with the output.
 type TaskResultMsg struct {
-	NodeID apitask.TaskID `json:"node_id"`
+	NodeID APITask.TaskID `json:"node_id"`
 	Output string         `json:"output"`
 }
