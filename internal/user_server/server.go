@@ -53,8 +53,9 @@ func (s *HTTPServer) handleChat(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	var req struct {
-		Prompt string `json:"prompt"`
-		Owner  string `json:"owner,omitempty"`
+		Prompt  string `json:"prompt"`
+		Owner   string `json:"owner,omitempty"`
+		Context string `json:"context,omitempty"`
 	}
 	json.Unmarshal(body, &req)
 	if req.Prompt == "" {
@@ -63,6 +64,9 @@ func (s *HTTPServer) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Owner == "" {
 		req.Owner = "anonymous"
+	}
+	if req.Context == "" {
+		req.Context = "default"
 	}
 
 	ch := make(chan APITask.PlanResult, 1)
