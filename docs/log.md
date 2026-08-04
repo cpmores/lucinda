@@ -23,8 +23,8 @@
   - Populate on `Register()`
   - Use O(1) lookup in `executor.go` instead of double-loop
 
-- [ ] Delete dead code
-  - `api/v1/other/` — all files
+- [x] Delete dead code
+  - `api/v1/other/` — all files (deleted on `chore/api-cleanup`)
   - `cmd/node/` — entire directory (fully commented-out main.go)
 
 ### After this branch merges

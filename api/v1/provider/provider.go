@@ -4,28 +4,28 @@ package apiprovider
 import (
 	"context"
 
-	apichat "github.com/cpmores/lucinda/api/v1/chat"
-	apihardware "github.com/cpmores/lucinda/api/v1/hardware"
+	APIChat "github.com/cpmores/lucinda/api/v1/chat"
+	APIHardware "github.com/cpmores/lucinda/api/v1/hardware"
 )
 
 // ── Provider Interface ─────────────────────────────────────────────────
 
 // Provider is the interface every inference backend driver must implement.
 type Provider interface {
-	GetID()        string
-	GetType()      ProviderType
-	GetModels()    []string
-	GetInfo()      ProviderInfo
+	GetID() string
+	GetType() ProviderType
+	GetModels() []string
+	GetInfo() ProviderInfo
 
 	// MaxContextTokens returns the maximum context size (input + output tokens)
 	// the model can handle. Used by the planner and reducer to stay within limits.
 	MaxContextTokens() int
 
-	GPU()    (apihardware.GPUSnapshot, error)
+	GPU() (APIHardware.GPUSnapshot, error)
 	Health() ProviderHealth
 
-	Generate(ctx context.Context, req *apichat.ChatRequest) (*apichat.ChatResponse, error)
-	Stream(ctx context.Context, req *apichat.ChatRequest) (<-chan *apichat.StreamChunk, error)
+	Generate(ctx context.Context, req *APIChat.ChatRequest) (*APIChat.ChatResponse, error)
+	Stream(ctx context.Context, req *APIChat.ChatRequest) (<-chan *APIChat.StreamChunk, error)
 	Warm(model string) error
 }
 
@@ -36,9 +36,9 @@ type Provider interface {
 type ProviderType string
 
 const (
-	LOCAL  ProviderType = "local"
-	CLOUD  ProviderType = "cloud"
-	HYBRID ProviderType = "hybrid"
+	Local  ProviderType = "local"
+	Cloud  ProviderType = "cloud"
+	Hybrid ProviderType = "hybrid"
 )
 
 // ProviderInfo represents the information about a provider,
@@ -54,11 +54,11 @@ type ProviderInfo struct {
 type ProviderStatus string
 
 const (
-	INITIALIZING ProviderStatus = "initializing"
-	FREE         ProviderStatus = "free"
-	BUSY         ProviderStatus = "busy"
-	PENDING      ProviderStatus = "pending"
-	ERROR        ProviderStatus = "error"
+	Initializing ProviderStatus = "initializing"
+	Free         ProviderStatus = "free"
+	Busy         ProviderStatus = "busy"
+	Pending      ProviderStatus = "pending"
+	Error        ProviderStatus = "error"
 )
 
 // ProviderHealth represents the health status of a provider,
@@ -75,16 +75,16 @@ type ProviderHealth struct {
 
 // ProviderConfig represents the configuration for registering a provider,
 type ProviderConfig struct {
-	ID      string            `mapstructure:"id"`
-	Type    ProviderType      `mapstructure:"type"`
-	Driver  string            `mapstructure:"driver"` // "ollama", "openai", "anthropic"
-	Host    string            `mapstructure:"host"`
-	Port    int               `mapstructure:"port"`
-	BaseURL string            `mapstructure:"base_url"` // optional, overrides host:port
-	APIKey  string            `mapstructure:"api_key"`  // empty for ollama
-	Headers map[string]string `mapstructure:"headers"`  // extra headers
-	Models  []string          `mapstructure:"models"`
-	TotalVRAM         int64 `mapstructure:"total_vram"`          // physical GPU VRAM in bytes
-	MaxContextTokens  int   `mapstructure:"max_context_tokens"`  // model context window (default 2048)
-	Timeout           int   `mapstructure:"timeout"`             // seconds between polls/retries
+	ID               string            `mapstructure:"id"`
+	Type             ProviderType      `mapstructure:"type"`
+	Driver           string            `mapstructure:"driver"` // "ollama", "openai", "anthropic"
+	Host             string            `mapstructure:"host"`
+	Port             int               `mapstructure:"port"`
+	BaseURL          string            `mapstructure:"base_url"` // optional, overrides host:port
+	APIKey           string            `mapstructure:"api_key"`  // empty for ollama
+	Headers          map[string]string `mapstructure:"headers"`  // extra headers
+	Models           []string          `mapstructure:"models"`
+	TotalVRAM        int64             `mapstructure:"total_vram"`         // physical GPU VRAM in bytes
+	MaxContextTokens int               `mapstructure:"max_context_tokens"` // model context window (default 2048)
+	Timeout          int               `mapstructure:"timeout"`            // seconds between polls/retries
 }

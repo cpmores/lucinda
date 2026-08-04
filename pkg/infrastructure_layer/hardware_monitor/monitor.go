@@ -151,7 +151,7 @@ func (m *monitor) collect() {
 // ── AvailableModule Interface ──────────────────────────────────────────────────────────
 
 func (m *monitor) GetModuleType() APIModule.ModuleType {
-	return APIModule.HARDWAREMONITOR
+	return APIModule.HardwareMonitor
 }
 
 func (m *monitor) GetModuleID() APIModule.ModuleID {
@@ -159,7 +159,7 @@ func (m *monitor) GetModuleID() APIModule.ModuleID {
 }
 
 func (m *monitor) CheckHealth() APIModule.ModuleHealth {
-	return APIModule.NewModuleHealth(m.GetModuleID(), m.GetModuleType(), APIModule.RUNNING)
+	return APIModule.NewModuleHealth(m.GetModuleID(), m.GetModuleType(), APIModule.Running)
 }
 
 func (m *monitor) RegisterWithManager(manager modulemanager.ModuleManager) error {

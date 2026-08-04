@@ -11,14 +11,14 @@ import (
 	APIChat "github.com/cpmores/lucinda/api/v1/chat"
 	APIEvent "github.com/cpmores/lucinda/api/v1/event"
 	APIModule "github.com/cpmores/lucinda/api/v1/module"
-	apinode "github.com/cpmores/lucinda/api/v1/node"
+	APINode "github.com/cpmores/lucinda/api/v1/node"
+	APIProvider "github.com/cpmores/lucinda/api/v1/provider"
 	APITask "github.com/cpmores/lucinda/api/v1/task"
 	APITaskmsg "github.com/cpmores/lucinda/api/v1/taskmsg"
 	taskpostman "github.com/cpmores/lucinda/internal/task_management_layer/task_postman"
 	taskstatemanager "github.com/cpmores/lucinda/internal/task_management_layer/task_state_manager"
 	tasktracer "github.com/cpmores/lucinda/internal/task_management_layer/task_tracer"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
-	apiprovider "github.com/cpmores/lucinda/api/v1/provider"
 	providerctrl "github.com/cpmores/lucinda/pkg/infrastructure_layer/provider"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/transport"
 )
@@ -32,35 +32,35 @@ type TaskExecutor interface {
 }
 
 type executor struct {
-	mu      sync.Mutex
-	pm      taskpostman.Postman
-	pc      providerctrl.ProviderController
-	tp      transport.Transport
-	tt      tasktracer.TaskTracer
-	sm      taskstatemanager.TaskStateManager
-	cancel  context.CancelFunc
+	mu     sync.Mutex
+	pm     taskpostman.Postman
+	pc     providerctrl.ProviderController
+	tp     transport.Transport
+	tt     tasktracer.TaskTracer
+	sm     taskstatemanager.TaskStateManager
+	cancel context.CancelFunc
 }
 
 func NewTaskExecutor(mm modulemanager.ModuleManager, sm taskstatemanager.TaskStateManager) TaskExecutor {
-	postmans := mm.GetByType(APIModule.TASKPOSTMAN)
+	postmans := mm.GetByType(APIModule.TaskPostman)
 	if len(postmans) == 0 {
 		log.Fatal("executor: no TaskPostman found")
 	}
 	pm := postmans[0].(taskpostman.Postman)
 
-	transports := mm.GetByType(APIModule.TRANSPORT)
+	transports := mm.GetByType(APIModule.Transport)
 	if len(transports) == 0 {
 		log.Fatal("executor: no Transport found")
 	}
 	tp := transports[0].(transport.Transport)
 
-	providers := mm.GetByType(APIModule.PROVIDERCONTROLLER)
+	providers := mm.GetByType(APIModule.ProviderController)
 	if len(providers) == 0 {
 		log.Fatal("executor: no ProviderController found")
 	}
 	pc := providers[0].(providerctrl.ProviderController)
 
-	tracers := mm.GetByType(APIModule.TASKTRACER)
+	tracers := mm.GetByType(APIModule.TaskTracer)
 	if len(tracers) == 0 {
 		log.Fatal("executor: no TaskTracer found")
 	}
@@ -98,12 +98,12 @@ func (e *executor) Stop() error {
 
 func (e *executor) execute(ctx context.Context, msg *APITaskmsg.TaskAssignMsg) error {
 	e.tt.Assigned(&APITask.Task{
-		Meta:   APITask.TaskMeta{ID: msg.NodeID},
-		Spec:   msg.Spec,
+		Meta: APITask.TaskMeta{ID: msg.NodeID},
+		Spec: msg.Spec,
 	})
 
 	// Find a provider that supports the requested model.
-	var prov apiprovider.Provider
+	var prov APIProvider.Provider
 	for _, p := range e.pc.List() {
 		for _, m := range p.GetModels() {
 			if m == msg.Spec.Model {
@@ -177,11 +177,11 @@ func (e *executor) execute(ctx context.Context, msg *APITaskmsg.TaskAssignMsg) e
 		// Transport. The origin's Postman.Deliver bridges this to its
 		// local EventBus as a TaskDone event, where the board handler
 		// picks it up.
-		e.tp.Send(ctx, apinode.NodeID(msg.OriginNodeID),
-			apinode.NewNodeMessage(TaskBoardProtocol,
+		e.tp.Send(ctx, APINode.NodeID(msg.OriginNodeID),
+			APINode.NewNodeMessage(TaskBoardProtocol,
 				string(APIEvent.TaskDone),
 				e.tp.ID(),
-				apinode.NodeID(msg.OriginNodeID),
+				APINode.NodeID(msg.OriginNodeID),
 				result,
 			))
 	}
@@ -198,7 +198,11 @@ func textFromResponse(resp *APIChat.ChatResponse) string {
 	return b.String()
 }
 
-func (e *executor) GetModuleType() APIModule.ModuleType { return APIModule.TASKEXECUTOR }
-func (e *executor) GetModuleID() APIModule.ModuleID { return APIModule.NewModuleID(e.GetModuleType(), "default") }
-func (e *executor) CheckHealth() APIModule.ModuleHealth { return APIModule.NewModuleHealth(e.GetModuleID(), e.GetModuleType(), APIModule.RUNNING) }
+func (e *executor) GetModuleType() APIModule.ModuleType { return APIModule.TaskExecutor }
+func (e *executor) GetModuleID() APIModule.ModuleID {
+	return APIModule.NewModuleID(e.GetModuleType(), "default")
+}
+func (e *executor) CheckHealth() APIModule.ModuleHealth {
+	return APIModule.NewModuleHealth(e.GetModuleID(), e.GetModuleType(), APIModule.Running)
+}
 func (e *executor) RegisterWithManager(m modulemanager.ModuleManager) error { return m.Register(e) }

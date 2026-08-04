@@ -356,13 +356,13 @@ func allDone(plan *APITask.TaskPlan) bool {
 	return true
 }
 
-func (m *manager) GetModuleType() APIModule.ModuleType { return APIModule.TASKSTATEMANAGER }
+func (m *manager) GetModuleType() APIModule.ModuleType { return APIModule.TaskStateManager }
 func (m *manager) GetModuleID() APIModule.ModuleID {
 	return APIModule.NewModuleID(m.GetModuleType(), "default")
 }
 
 func (m *manager) CheckHealth() APIModule.ModuleHealth {
-	return APIModule.NewModuleHealth(m.GetModuleID(), m.GetModuleType(), APIModule.RUNNING)
+	return APIModule.NewModuleHealth(m.GetModuleID(), m.GetModuleType(), APIModule.Running)
 }
 func (m *manager) RegisterWithManager(mm modulemanager.ModuleManager) error { return mm.Register(m) }
 

@@ -95,7 +95,7 @@ func NewOllamaProvider(config APIProvider.ProviderConfig) (*OllamaProvider, erro
 // ── Info ──────────────────────────────────────────────────────────────
 
 func (p *OllamaProvider) GetID() string                     { return p.id }
-func (p *OllamaProvider) GetType() APIProvider.ProviderType { return APIProvider.LOCAL }
+func (p *OllamaProvider) GetType() APIProvider.ProviderType { return APIProvider.Local }
 func (p *OllamaProvider) GetModels() []string               { return p.models }
 func (p *OllamaProvider) MaxContextTokens() int {
 	if p.config.MaxContextTokens > 0 {
@@ -103,12 +103,12 @@ func (p *OllamaProvider) MaxContextTokens() int {
 	}
 	return 2048
 }
-func (p *OllamaProvider) GetCreatedAt() int64               { return p.createdAt }
+func (p *OllamaProvider) GetCreatedAt() int64 { return p.createdAt }
 
 func (p *OllamaProvider) GetInfo() APIProvider.ProviderInfo {
 	return APIProvider.ProviderInfo{
 		ID:        p.id,
-		Type:      APIProvider.LOCAL,
+		Type:      APIProvider.Local,
 		Models:    p.models,
 		CreatedAt: p.createdAt,
 	}
@@ -129,7 +129,7 @@ func (p *OllamaProvider) Health() APIProvider.ProviderHealth {
 
 	return APIProvider.ProviderHealth{
 		ID:        p.nextEventID(),
-		Status:    APIProvider.FREE,
+		Status:    APIProvider.Free,
 		Timestamp: time.Now().Unix(),
 	}
 }
@@ -331,7 +331,7 @@ func (p *OllamaProvider) toChatResponse(o *ollamaResponse) *APIChat.ChatResponse
 func (p *OllamaProvider) errorHealth(errMsg string) APIProvider.ProviderHealth {
 	return APIProvider.ProviderHealth{
 		ID:        p.nextEventID(),
-		Status:    APIProvider.ERROR,
+		Status:    APIProvider.Error,
 		Timestamp: time.Now().Unix(),
 		Error:     errMsg,
 	}

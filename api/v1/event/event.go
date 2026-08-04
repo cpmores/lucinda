@@ -1,5 +1,5 @@
-// Package apievent api event provide event struct and event type definition
-// transferred between eventbus and other components
+// Package apievent provides the event struct and event type definitions
+// transferred between the event bus and other components.
 package apievent
 
 import (
@@ -10,10 +10,8 @@ import (
 type EventID int64
 
 // EventType represents the type of an event
-// which can be usef to identify the event and determine how to handle it
+// which can be used to identify the event and determine how to handle it
 type EventType string
-
-type Topic EventType
 
 type EventOnComplete func(data any) error
 
@@ -23,14 +21,14 @@ const (
 	UserResponseSent    EventType = "user.responded"
 
 	// Task lifecycle
-	TaskPreplaned   EventType = "task.preplaned" // single-node plan, preplaned, subuscribed by planner
+	TaskPreplanned  EventType = "task.preplanned" // single-node plan, preplanned, subscribed by planner
 	TaskReady       EventType = "task.ready"
 	TaskRunning     EventType = "task.running"
 	TaskDone        EventType = "task.done"
 	TaskFailed      EventType = "task.failed"
 	TaskRepublished EventType = "task.republished"
 
-	// Task Deliver
+	// Task delivery
 	TaskAdReceived EventType = "task.ad.received"
 	TaskCVReceived EventType = "task.cv.received"
 	TaskAssigned   EventType = "task.assigned"

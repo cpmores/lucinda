@@ -603,7 +603,7 @@ func (lt *Libp2pTransport) selfSendWorker(ctx context.Context, outCh <-chan APIN
 // ── AvailableModule Interface ──────────────────────────────────────────────────────────
 
 func (lt *Libp2pTransport) GetModuleType() APIModule.ModuleType {
-	return APIModule.TRANSPORT
+	return APIModule.Transport
 }
 
 func (lt *Libp2pTransport) GetModuleID() APIModule.ModuleID {
@@ -611,7 +611,7 @@ func (lt *Libp2pTransport) GetModuleID() APIModule.ModuleID {
 }
 
 func (lt *Libp2pTransport) CheckHealth() APIModule.ModuleHealth {
-	return APIModule.NewModuleHealth(lt.GetModuleID(), lt.GetModuleType(), APIModule.RUNNING)
+	return APIModule.NewModuleHealth(lt.GetModuleID(), lt.GetModuleType(), APIModule.Running)
 }
 
 func (lt *Libp2pTransport) RegisterWithManager(manager modulemanager.ModuleManager) error {

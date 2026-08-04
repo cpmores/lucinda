@@ -53,7 +53,7 @@ func TestHealthOK(t *testing.T) {
 
 	p, _ := NewVLLMProvider(testConfig(srv.URL))
 	h := p.Health()
-	if h.Status != APIProvider.FREE {
+	if h.Status != APIProvider.Free {
 		t.Fatalf("expected FREE, got %s", h.Status)
 	}
 }
@@ -66,7 +66,7 @@ func TestHealthLoading(t *testing.T) {
 
 	p, _ := NewVLLMProvider(testConfig(srv.URL))
 	h := p.Health()
-	if h.Status != APIProvider.ERROR {
+	if h.Status != APIProvider.Error {
 		t.Fatalf("expected ERROR for 503, got %s", h.Status)
 	}
 }
@@ -74,7 +74,7 @@ func TestHealthLoading(t *testing.T) {
 func TestHealthConnectionRefused(t *testing.T) {
 	p, _ := NewVLLMProvider(testConfig("http://127.0.0.1:1"))
 	h := p.Health()
-	if h.Status != APIProvider.ERROR {
+	if h.Status != APIProvider.Error {
 		t.Fatalf("expected ERROR for dead server, got %s", h.Status)
 	}
 }

@@ -39,25 +39,25 @@ type reducer struct {
 }
 
 func NewTaskReducer(mm modulemanager.ModuleManager) TaskReducer {
-	postmans := mm.GetByType(APIModule.TASKPOSTMAN)
+	postmans := mm.GetByType(APIModule.TaskPostman)
 	if len(postmans) == 0 {
 		log.Fatalln("task_reducer: no task_postman")
 	}
 	pm := postmans[0].(taskpostman.Postman)
 
-	tracers := mm.GetByType(APIModule.TASKTRACER)
+	tracers := mm.GetByType(APIModule.TaskTracer)
 	if len(tracers) == 0 {
 		log.Fatalln("task_reducer: no task_tracer")
 	}
 	tt := tracers[0].(tasktracer.TaskTracer)
 
-	sms := mm.GetByType(APIModule.TASKSTATEMANAGER)
+	sms := mm.GetByType(APIModule.TaskStateManager)
 	if len(sms) == 0 {
 		log.Fatalln("task_reducer: no task_state_manager")
 	}
 	sm := sms[0].(taskstatemanager.TaskStateManager)
 
-	pcs := mm.GetByType(APIModule.PROVIDERCONTROLLER)
+	pcs := mm.GetByType(APIModule.ProviderController)
 	if len(pcs) == 0 {
 		log.Fatalln("task_reducer: no provider_controller")
 	}
@@ -197,14 +197,14 @@ func parentPlanID(id APITask.TaskID) APITask.TaskID {
 
 // ── AvailableModule Interface ──────────────────────────────────────────
 
-func (r *reducer) GetModuleType() APIModule.ModuleType { return APIModule.TASKREDUCER }
+func (r *reducer) GetModuleType() APIModule.ModuleType { return APIModule.TaskReducer }
 
 func (r *reducer) GetModuleID() APIModule.ModuleID {
 	return APIModule.NewModuleID(r.GetModuleType(), "default")
 }
 
 func (r *reducer) CheckHealth() APIModule.ModuleHealth {
-	return APIModule.NewModuleHealth(r.GetModuleID(), r.GetModuleType(), APIModule.RUNNING)
+	return APIModule.NewModuleHealth(r.GetModuleID(), r.GetModuleType(), APIModule.Running)
 }
 func (r *reducer) RegisterWithManager(m modulemanager.ModuleManager) error { return m.Register(r) }
 

@@ -122,8 +122,6 @@ Shared types with no internal dependencies. Key packages:
 - `node/` — `NodeID`, `NodeMessage`, `Protocol`
 - `hardware/` — `HardwareSnapshot`, `GPUSnapshot`
 
-The `api/v1/other/` directory is dead code slated for deletion (per docs/log.md).
-
 ## Current State
 
 Active branch: `fix/sse-goroutine-leak`. Pending items from `docs/log.md`:

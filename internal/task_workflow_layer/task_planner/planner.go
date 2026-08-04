@@ -40,25 +40,25 @@ type planner struct {
 }
 
 func NewTaskPlanner(mod modulemanager.ModuleManager) TaskPlanner {
-	postmans := mod.GetByType(APIModule.TASKPOSTMAN)
+	postmans := mod.GetByType(APIModule.TaskPostman)
 	if len(postmans) == 0 {
 		log.Fatalln("task_planner: no task_postman module found")
 	}
 	postman := postmans[0].(taskpostman.Postman)
 
-	stateManagers := mod.GetByType(APIModule.TASKSTATEMANAGER)
+	stateManagers := mod.GetByType(APIModule.TaskStateManager)
 	if len(stateManagers) == 0 {
 		log.Fatalln("task_planner: no task_state_manager module found")
 	}
 	stateManager := stateManagers[0].(taskstatemanager.TaskStateManager)
 
-	providerControllers := mod.GetByType(APIModule.PROVIDERCONTROLLER)
+	providerControllers := mod.GetByType(APIModule.ProviderController)
 	if len(providerControllers) == 0 {
 		log.Fatalln("task_planner: no provider_controller module found")
 	}
 	providerController := providerControllers[0].(provider.ProviderController)
 
-	tracers := mod.GetByType(APIModule.TASKTRACER)
+	tracers := mod.GetByType(APIModule.TaskTracer)
 	if len(tracers) == 0 {
 		log.Fatalln("task_planner: no task_tracer")
 	}
@@ -78,7 +78,7 @@ func NewTaskPlanner(mod modulemanager.ModuleManager) TaskPlanner {
 func (p *planner) Start(ctx context.Context) error {
 	ctx, p.cancel = context.WithCancel(ctx)
 	// Start watching for a new task to plan
-	p.pm.Watch(ctx, APIEvent.TaskPreplaned, func(data any) error {
+	p.pm.Watch(ctx, APIEvent.TaskPreplanned, func(data any) error {
 		task, ok := data.(*APITask.Task)
 		if !ok {
 			return nil
@@ -292,7 +292,7 @@ func fallbackPlan(id APITask.TaskID, owner, prompt string) *APITask.TaskPlan {
 // ── AvailableModule Interface ──────────────────────────────────────────
 
 func (p *planner) GetModuleType() APIModule.ModuleType {
-	return APIModule.TASKPLANNER
+	return APIModule.TaskPlanner
 }
 
 func (p *planner) GetModuleID() APIModule.ModuleID {
@@ -300,7 +300,7 @@ func (p *planner) GetModuleID() APIModule.ModuleID {
 }
 
 func (p *planner) CheckHealth() APIModule.ModuleHealth {
-	return APIModule.NewModuleHealth(p.GetModuleID(), p.GetModuleType(), APIModule.RUNNING)
+	return APIModule.NewModuleHealth(p.GetModuleID(), p.GetModuleType(), APIModule.Running)
 }
 
 func (p *planner) RegisterWithManager(m modulemanager.ModuleManager) error {

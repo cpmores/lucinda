@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	APIevent "github.com/cpmores/lucinda/api/v1/event"
+	APIEvent "github.com/cpmores/lucinda/api/v1/event"
 )
 
 func TestNewInMemoryEventBus(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewInMemoryEventBus(t *testing.T) {
 
 func TestSubscribe(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	topic := APIevent.EventType("test.topic")
+	topic := APIEvent.EventType("test.topic")
 
 	ch := bus.Subscribe(topic, 10)
 	if ch == nil {
@@ -39,8 +39,8 @@ func TestSubscribe(t *testing.T) {
 
 func TestSubscribeMultipleTopics(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	topicA := APIevent.EventType("topic.a")
-	topicB := APIevent.EventType("topic.b")
+	topicA := APIEvent.EventType("topic.a")
+	topicB := APIEvent.EventType("topic.b")
 
 	chA := bus.Subscribe(topicA, 5)
 	chB := bus.Subscribe(topicB, 5)
@@ -58,10 +58,10 @@ func TestSubscribeMultipleTopics(t *testing.T) {
 
 func TestPublishToSingleSubscriber(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	topic := APIevent.EventType("test.topic")
+	topic := APIEvent.EventType("test.topic")
 	ch := bus.Subscribe(topic, 5)
 
-	event := APIevent.Event{
+	event := APIEvent.Event{
 		ID:   1,
 		Type: "test",
 		Data: "hello",
@@ -89,18 +89,18 @@ func TestPublishToSingleSubscriber(t *testing.T) {
 
 func TestPublishToMultipleSubscribers(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	topic := APIevent.EventType("test.topic")
+	topic := APIEvent.EventType("test.topic")
 
 	ch1 := bus.Subscribe(topic, 5)
 	ch2 := bus.Subscribe(topic, 5)
 	ch3 := bus.Subscribe(topic, 5)
 
-	event := APIevent.Event{ID: 42, Type: "broadcast", Data: "all"}
+	event := APIEvent.Event{ID: 42, Type: "broadcast", Data: "all"}
 	if err := bus.Publish(topic, event); err != nil {
 		t.Fatalf("Publish failed: %v", err)
 	}
 
-	for i, ch := range []chan APIevent.Event{ch1, ch2, ch3} {
+	for i, ch := range []chan APIEvent.Event{ch1, ch2, ch3} {
 		select {
 		case received := <-ch:
 			if received.ID != 42 {
@@ -114,17 +114,17 @@ func TestPublishToMultipleSubscribers(t *testing.T) {
 
 func TestPublishToTopicWithNoSubscribers(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	topic := APIevent.EventType("nobody.here")
+	topic := APIEvent.EventType("nobody.here")
 
 	// Should not panic or error — just a no-op.
-	if err := bus.Publish(topic, APIevent.Event{ID: 1}); err != nil {
+	if err := bus.Publish(topic, APIEvent.Event{ID: 1}); err != nil {
 		t.Fatalf("Publish to empty topic should not error: %v", err)
 	}
 }
 
 func TestUnsubscribe(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	topic := APIevent.EventType("test.topic")
+	topic := APIEvent.EventType("test.topic")
 	ch := bus.Subscribe(topic, 5)
 
 	bus.UnSubscribe(topic, ch)
@@ -150,7 +150,7 @@ func TestUnsubscribe(t *testing.T) {
 
 func TestUnsubscribeOnlyRemovesTargetChannel(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	topic := APIevent.EventType("test.topic")
+	topic := APIEvent.EventType("test.topic")
 
 	ch1 := bus.Subscribe(topic, 5)
 	ch2 := bus.Subscribe(topic, 5)
@@ -158,7 +158,7 @@ func TestUnsubscribeOnlyRemovesTargetChannel(t *testing.T) {
 	bus.UnSubscribe(topic, ch1)
 
 	// ch1 should be closed. Verify ch2 is still intact by publishing.
-	event := APIevent.Event{ID: 99}
+	event := APIEvent.Event{ID: 99}
 	if err := bus.Publish(topic, event); err != nil {
 		t.Fatalf("Publish failed: %v", err)
 	}
@@ -182,8 +182,8 @@ func TestUnsubscribeOnlyRemovesTargetChannel(t *testing.T) {
 
 func TestUnsubscribeNonexistentChannel(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	topic := APIevent.EventType("test.topic")
-	ch := make(chan APIevent.Event, 1)
+	topic := APIEvent.EventType("test.topic")
+	ch := make(chan APIEvent.Event, 1)
 
 	// Should not panic.
 	bus.UnSubscribe(topic, ch)
@@ -191,14 +191,14 @@ func TestUnsubscribeNonexistentChannel(t *testing.T) {
 
 func TestChannelFullDropsMessage(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	topic := APIevent.EventType("test.topic")
+	topic := APIEvent.EventType("test.topic")
 
 	// Create a channel with capacity 1 and fill it.
 	ch := bus.Subscribe(topic, 1)
-	ch <- APIevent.Event{ID: 1} // fill the buffer
+	ch <- APIEvent.Event{ID: 1} // fill the buffer
 
 	// Publish another event — should be dropped (non-blocking).
-	if err := bus.Publish(topic, APIevent.Event{ID: 2, Data: "dropped"}); err != nil {
+	if err := bus.Publish(topic, APIEvent.Event{ID: 2, Data: "dropped"}); err != nil {
 		t.Fatalf("Publish should not error even when channel is full: %v", err)
 	}
 
@@ -223,12 +223,12 @@ func TestChannelFullDropsMessage(t *testing.T) {
 
 func TestConcurrentPublishSubscribe(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	topic := APIevent.EventType("concurrent")
+	topic := APIEvent.EventType("concurrent")
 
 	const numSubscribers = 10
 	const numPublishes = 50
 
-	channels := make([]chan APIevent.Event, numSubscribers)
+	channels := make([]chan APIEvent.Event, numSubscribers)
 	for i := 0; i < numSubscribers; i++ {
 		channels[i] = bus.Subscribe(topic, numPublishes)
 	}
@@ -237,7 +237,7 @@ func TestConcurrentPublishSubscribe(t *testing.T) {
 	done := make(chan struct{})
 	for i := 0; i < numPublishes; i++ {
 		go func(id int) {
-			bus.Publish(topic, APIevent.Event{ID: APIevent.EventID(id)})
+			bus.Publish(topic, APIEvent.Event{ID: APIEvent.EventID(id)})
 		}(i)
 	}
 
@@ -261,11 +261,11 @@ func TestConcurrentPublishSubscribe(t *testing.T) {
 
 func TestMultiplePublishEventsInOrder(t *testing.T) {
 	bus := NewInMemoryEventBus()
-	topic := APIevent.EventType("ordered")
+	topic := APIEvent.EventType("ordered")
 
 	ch := bus.Subscribe(topic, 10)
 
-	events := []APIevent.Event{
+	events := []APIEvent.Event{
 		{ID: 1, Data: "first"},
 		{ID: 2, Data: "second"},
 		{ID: 3, Data: "third"},

@@ -5,7 +5,7 @@ type ChatRequest struct {
 	Model    string        `json:"model"`
 	Messages []ChatMessage `json:"messages"`
 	Stream   bool          `json:"stream,omitempty"`
-	Options  ModelOptions  `json:"option"`
+	Options  ModelOptions  `json:"options"`
 }
 
 type ChatMessage struct {
