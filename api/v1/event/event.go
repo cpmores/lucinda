@@ -2,6 +2,10 @@
 // transferred between eventbus and other components
 package apievent
 
+import (
+	"sync/atomic"
+)
+
 // EventID represents the unique identifier for an event in every node
 type EventID int64
 
@@ -42,11 +46,10 @@ type Event struct {
 	Data any       `json:"data"` // Payload of the event, can be any type
 }
 
-var eventID EventID = 0
+var eventID atomic.Int64
 
 func NewEventID() EventID {
-	eventID++
-	return eventID
+	return EventID(eventID.Add(1))
 }
 
 func NewEvent(eventType EventType, data any) Event {

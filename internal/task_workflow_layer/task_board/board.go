@@ -12,8 +12,8 @@ import (
 	"time"
 
 	APICapability "github.com/cpmores/lucinda/api/v1/capability"
-	apihardware "github.com/cpmores/lucinda/api/v1/hardware"
 	APIEvent "github.com/cpmores/lucinda/api/v1/event"
+	apihardware "github.com/cpmores/lucinda/api/v1/hardware"
 	APIModule "github.com/cpmores/lucinda/api/v1/module"
 	apinode "github.com/cpmores/lucinda/api/v1/node"
 	APITask "github.com/cpmores/lucinda/api/v1/task"
@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	TaskBoardProtocol          = "/lucinda/taskboard/1.0.0"
+	TaskBoardProtocol = "/lucinda/taskboard/1.0.0"
 )
 
 type TaskBoard interface {
@@ -124,7 +124,7 @@ func (b *board) Start(ctx context.Context) error {
 	b.pm.Deliver(ctx, b.tp, TaskBoardProtocol)
 	// When local StateManager says a node is Ready, broadcast it.
 	b.pm.Watch(ctx, APIEvent.TaskReady, func(data any) error {
-			log.Printf("taskboard: >>> TaskReady handler data=%T", data)
+		log.Printf("taskboard: >>> TaskReady handler data=%T", data)
 		node, ok := data.(*APITask.TaskNode)
 		if !ok {
 			return nil
@@ -163,9 +163,11 @@ func (b *board) Start(ctx context.Context) error {
 
 	b.pm.Watch(ctx, APIEvent.TaskDone, func(data any) error {
 		result, ok := data.(APITaskmsg.TaskResultMsg)
-		if !ok { return nil }
+		if !ok {
+			return nil
+		}
 		b.tt.SetOutput(result.NodeID, result.Output)
-			
+
 		return b.sm.Complete(result.NodeID, result.Output)
 	})
 
@@ -390,7 +392,9 @@ func (b *board) submitBid(ad APITask.TaskAd) {
 
 func (b *board) buildCV(ad APITask.TaskAd) *APICapability.CapabilityCV {
 	var hw apihardware.HardwareSnapshot
-	if b.hm != nil { hw = b.hm.Snapshot() }
+	if b.hm != nil {
+		hw = b.hm.Snapshot()
+	}
 	if b.pc != nil {
 		// GPU query can be slow (HTTP /metrics). Use a short timeout so
 		// the bid submission path never blocks the board's event loop.
@@ -412,12 +416,12 @@ func (b *board) buildCV(ad APITask.TaskAd) *APICapability.CapabilityCV {
 	}
 	var models []string
 	if b.pc != nil {
-		for _, p := range b.pc.List() { models = append(models, p.GetModels()...) }
+		for _, p := range b.pc.List() {
+			models = append(models, p.GetModels()...)
+		}
 	}
 	return &APICapability.CapabilityCV{TaskID: ad.ID, PeerID: string(b.tp.ID()), Hardware: hw, Models: models}
 }
-
-
 
 func (b *board) buildAssignMsg(task *APITask.Task) APITaskmsg.TaskAssignMsg {
 	assign := APITaskmsg.TaskToTaskAssignMsg(task)
@@ -426,6 +430,11 @@ func (b *board) buildAssignMsg(task *APITask.Task) APITaskmsg.TaskAssignMsg {
 }
 
 func (b *board) GetModuleType() APIModule.ModuleType { return APIModule.TASKBOARD }
-func (b *board) GetModuleID() APIModule.ModuleID { return APIModule.NewModuleID(b.GetModuleType(), "default") }
-func (b *board) CheckHealth() APIModule.ModuleHealth { return APIModule.NewModuleHealth(b.GetModuleID(), b.GetModuleType(), APIModule.RUNNING) }
+func (b *board) GetModuleID() APIModule.ModuleID {
+	return APIModule.NewModuleID(b.GetModuleType(), "default")
+}
+
+func (b *board) CheckHealth() APIModule.ModuleHealth {
+	return APIModule.NewModuleHealth(b.GetModuleID(), b.GetModuleType(), APIModule.RUNNING)
+}
 func (b *board) RegisterWithManager(m modulemanager.ModuleManager) error { return m.Register(b) }
