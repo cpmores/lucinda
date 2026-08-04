@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	APINode "github.com/cpmores/lucinda/api/v1/node"
+	APINode "github.com/cpmores/lucinda/api/v1/domain/node"
 )
 
 const testProtocol = APINode.Protocol("/lucinda/test/1.0.0")

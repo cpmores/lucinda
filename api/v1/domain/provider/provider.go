@@ -4,8 +4,8 @@ package apiprovider
 import (
 	"context"
 
-	APIChat "github.com/cpmores/lucinda/api/v1/chat"
-	APIHardware "github.com/cpmores/lucinda/api/v1/hardware"
+	APIChat "github.com/cpmores/lucinda/api/v1/domain/chat"
+	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
 )
 
 // ── Provider Interface ─────────────────────────────────────────────────

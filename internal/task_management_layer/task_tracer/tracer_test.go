@@ -3,7 +3,7 @@ package tasktracer
 import (
 	"testing"
 
-	APITask "github.com/cpmores/lucinda/api/v1/task"
+	APITask "github.com/cpmores/lucinda/api/v1/domain/task"
 )
 
 func makeTask(id APITask.TaskID, prompt string) *APITask.Task {

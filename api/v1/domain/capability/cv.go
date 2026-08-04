@@ -2,8 +2,8 @@
 package apicapability
 
 import (
-	APIHardware "github.com/cpmores/lucinda/api/v1/hardware"
-	APITask "github.com/cpmores/lucinda/api/v1/task"
+	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
+	APITask "github.com/cpmores/lucinda/api/v1/domain/task"
 )
 
 // CapabilityCV is a peer's self-reported capability profile, sent with every

@@ -5,9 +5,9 @@ package provider
 import (
 	"fmt"
 
-	APIHardware "github.com/cpmores/lucinda/api/v1/hardware"
-	APIModule "github.com/cpmores/lucinda/api/v1/module"
-	APIProvider "github.com/cpmores/lucinda/api/v1/provider"
+	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
+	APIProvider "github.com/cpmores/lucinda/api/v1/domain/provider"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/provider/drivers"
 	"github.com/spf13/viper"

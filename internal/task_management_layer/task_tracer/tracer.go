@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	APIModule "github.com/cpmores/lucinda/api/v1/module"
-	APITask "github.com/cpmores/lucinda/api/v1/task"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
+	APITask "github.com/cpmores/lucinda/api/v1/domain/task"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )
 

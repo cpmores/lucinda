@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	APIEvent "github.com/cpmores/lucinda/api/v1/event"
-	APIModule "github.com/cpmores/lucinda/api/v1/module"
-	APITask "github.com/cpmores/lucinda/api/v1/task"
+	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
+	APITask "github.com/cpmores/lucinda/api/v1/domain/task"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )

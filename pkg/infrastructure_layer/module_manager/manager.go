@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sync"
 
-	APIModule "github.com/cpmores/lucinda/api/v1/module"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 )
 
 // AvailableModule must be implemented for every modules

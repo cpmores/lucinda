@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	APIEvent "github.com/cpmores/lucinda/api/v1/event"
-	APIHardware "github.com/cpmores/lucinda/api/v1/hardware"
+	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
+	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 )
 

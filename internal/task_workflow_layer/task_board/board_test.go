@@ -6,9 +6,9 @@ import (
 	"sync"
 	"testing"
 
-	APICapability "github.com/cpmores/lucinda/api/v1/capability"
-	APINode "github.com/cpmores/lucinda/api/v1/node"
-	APITask "github.com/cpmores/lucinda/api/v1/task"
+	APICapability "github.com/cpmores/lucinda/api/v1/domain/capability"
+	APINode "github.com/cpmores/lucinda/api/v1/domain/node"
+	APITask "github.com/cpmores/lucinda/api/v1/domain/task"
 	taskpostman "github.com/cpmores/lucinda/internal/task_management_layer/task_postman"
 	tasktracer "github.com/cpmores/lucinda/internal/task_management_layer/task_tracer"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"

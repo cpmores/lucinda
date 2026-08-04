@@ -31,7 +31,7 @@ The core principle: **build from the bottom up** — each layer depends on the o
 
 - **Status:** Done (`pkg/infrastructure_layer/module_manager/manager.go`)
 - **Depends on:** nothing (api types only)
-- **Done:** `ModuleManager` interface: `Register`/`Unregister`, `Get`/`GetByType`/`List`/`Exists`, `Grant`/`Require` (capability-based access control), `Health`/`HealthAll`. `AvailableModule` interface: `GetModuleType`, `GetModuleID`, `CheckHealth`, `RegisterWithManager`. RWMutex-guarded. Module type constants (`TRANSPORT`, `TASKPOSTMAN`, `TASKEXECUTOR`, etc.) in `api/v1/module/`. 15 tests passing.
+- **Done:** `ModuleManager` interface: `Register`/`Unregister`, `Get`/`GetByType`/`List`/`Exists`, `Grant`/`Require` (capability-based access control), `Health`/`HealthAll`. `AvailableModule` interface: `GetModuleType`, `GetModuleID`, `CheckHealth`, `RegisterWithManager`. RWMutex-guarded. Module type constants (`Transport`, `TaskPostman`, `TaskExecutor`, etc.) in `api/v1/registry/module/`. 15 tests passing.
 
 ### 1.5 ProviderController + Drivers
 
@@ -91,7 +91,7 @@ The core principle: **build from the bottom up** — each layer depends on the o
 
 ### 2.5 CapabilityCV
 
-- **Status:** Done (`api/v1/capability/cv.go`)
+- **Status:** Done (`api/v1/domain/capability/cv.go`)
 - **Depends on:** hardware types
 - **Done:** `CapabilityCV` struct (TaskID, PeerID, HardwareSnapshot, Models, Tools, Labels). `Match(spec)` method: VRAM check, model check, tool check (gated on `len(cv.Tools) > 0` — toolbox not implemented yet), label check (gated on `len(cv.Labels) > 0`). Scoring: free memory GB + priority discount. Used by TaskBoard.Interview().
 

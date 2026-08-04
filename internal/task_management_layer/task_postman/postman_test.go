@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	APIEvent "github.com/cpmores/lucinda/api/v1/event"
+	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 )
 

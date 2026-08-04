@@ -5,7 +5,7 @@
 ### Done on this branch
 
 - [x] `PlanResult` type — replaces plain `string` on Notify channel
-  - `api/v1/task/task_plan.go`: `PlanResult{Status, Text}`, four statuses (`ok`, `error`, `timeout`, `cancelled`)
+  - `api/v1/domain/task/task_plan.go`: `PlanResult{Status, Text}`, four statuses (`ok`, `error`, `timeout`, `cancelled`)
   - `internal/.../manager.go`: `Complete()` sends `PlanResult{Status: PlanOK, ...}`
   - `internal/task_wrapper/wrapper.go`: signature `chan<- PlanResult`
   - `internal/user_server/server.go`: SSE handler switches on `result.Status`, uses `r.Context().Done()` to prevent goroutine leak, `streams` map guarded with `sync.Mutex`

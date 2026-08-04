@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	APIModule "github.com/cpmores/lucinda/api/v1/module"
-	APINode "github.com/cpmores/lucinda/api/v1/node"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
+	APINode "github.com/cpmores/lucinda/api/v1/domain/node"
 	libp2p "github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"

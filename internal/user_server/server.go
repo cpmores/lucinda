@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"sync"
 
-	APITask "github.com/cpmores/lucinda/api/v1/task"
+	APITask "github.com/cpmores/lucinda/api/v1/domain/task"
 	taskwrapper "github.com/cpmores/lucinda/internal/task_wrapper"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 )

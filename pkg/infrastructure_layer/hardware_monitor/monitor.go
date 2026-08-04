@@ -12,9 +12,9 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 
-	APIEvent "github.com/cpmores/lucinda/api/v1/event"
-	APIHardware "github.com/cpmores/lucinda/api/v1/hardware"
-	APIModule "github.com/cpmores/lucinda/api/v1/module"
+	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
+	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )

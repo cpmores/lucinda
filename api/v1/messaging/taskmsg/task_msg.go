@@ -2,8 +2,8 @@
 package apitaskmsg
 
 import (
-	APICapability "github.com/cpmores/lucinda/api/v1/capability"
-	APITask "github.com/cpmores/lucinda/api/v1/task"
+	APICapability "github.com/cpmores/lucinda/api/v1/domain/capability"
+	APITask "github.com/cpmores/lucinda/api/v1/domain/task"
 )
 
 // TaskBroadcastMsg is published by the TaskBoard when a node becomes Ready.

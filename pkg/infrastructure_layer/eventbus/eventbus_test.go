@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	APIEvent "github.com/cpmores/lucinda/api/v1/event"
+	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
 )
 
 func TestNewInMemoryEventBus(t *testing.T) {

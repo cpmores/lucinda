@@ -3,7 +3,7 @@ package taskreducer
 import (
 	"testing"
 
-	APITask "github.com/cpmores/lucinda/api/v1/task"
+	APITask "github.com/cpmores/lucinda/api/v1/domain/task"
 )
 
 func TestParentPlanID(t *testing.T) {

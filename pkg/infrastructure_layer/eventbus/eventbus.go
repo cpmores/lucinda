@@ -6,7 +6,7 @@ import (
 	"log"
 	"sync"
 
-	APIEvent "github.com/cpmores/lucinda/api/v1/event"
+	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
 )
 
 type EventBus interface {

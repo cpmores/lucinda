@@ -5,7 +5,7 @@ package drivers
 import (
 	"fmt"
 
-	APIProvider "github.com/cpmores/lucinda/api/v1/provider"
+	APIProvider "github.com/cpmores/lucinda/api/v1/domain/provider"
 )
 
 var factories = map[string]func(APIProvider.ProviderConfig) (APIProvider.Provider, error){}

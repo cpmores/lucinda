@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	APIChat "github.com/cpmores/lucinda/api/v1/chat"
-	APIProvider "github.com/cpmores/lucinda/api/v1/provider"
+	APIChat "github.com/cpmores/lucinda/api/v1/domain/chat"
+	APIProvider "github.com/cpmores/lucinda/api/v1/domain/provider"
 )
 
 func testConfig(url string) APIProvider.ProviderConfig {

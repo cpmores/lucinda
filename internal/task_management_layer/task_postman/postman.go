@@ -7,9 +7,9 @@ import (
 	"log"
 	"sync"
 
-	APIEvent "github.com/cpmores/lucinda/api/v1/event"
-	APIModule "github.com/cpmores/lucinda/api/v1/module"
-	APINode "github.com/cpmores/lucinda/api/v1/node"
+	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
+	APINode "github.com/cpmores/lucinda/api/v1/domain/node"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/transport"

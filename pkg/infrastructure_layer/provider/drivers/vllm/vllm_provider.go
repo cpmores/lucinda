@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	APIChat "github.com/cpmores/lucinda/api/v1/chat"
-	APIHardware "github.com/cpmores/lucinda/api/v1/hardware"
-	APIProvider "github.com/cpmores/lucinda/api/v1/provider"
+	APIChat "github.com/cpmores/lucinda/api/v1/domain/chat"
+	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
+	APIProvider "github.com/cpmores/lucinda/api/v1/domain/provider"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/provider/drivers"
 )
 

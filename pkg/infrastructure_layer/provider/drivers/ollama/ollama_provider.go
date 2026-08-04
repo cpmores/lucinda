@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	APIHardware "github.com/cpmores/lucinda/api/v1/hardware"
-	APIProvider "github.com/cpmores/lucinda/api/v1/provider"
+	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
+	APIProvider "github.com/cpmores/lucinda/api/v1/domain/provider"
 
-	APIChat "github.com/cpmores/lucinda/api/v1/chat"
+	APIChat "github.com/cpmores/lucinda/api/v1/domain/chat"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/provider/drivers"
 )
 

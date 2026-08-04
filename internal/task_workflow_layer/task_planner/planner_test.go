@@ -3,7 +3,7 @@ package taskplanner
 import (
 	"testing"
 
-	APITask "github.com/cpmores/lucinda/api/v1/task"
+	APITask "github.com/cpmores/lucinda/api/v1/domain/task"
 )
 
 func TestExtractJSON(t *testing.T) {

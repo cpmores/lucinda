@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	APIEvent "github.com/cpmores/lucinda/api/v1/event"
-	APITask "github.com/cpmores/lucinda/api/v1/task"
+	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
+	APITask "github.com/cpmores/lucinda/api/v1/domain/task"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 )
 

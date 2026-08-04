@@ -3,7 +3,7 @@ package manager
 import (
 	"testing"
 
-	APIModule "github.com/cpmores/lucinda/api/v1/module"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 )
 
 type stubModule struct {

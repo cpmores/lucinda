@@ -89,11 +89,11 @@ type AvailableModule interface {
 }
 ```
 
-Components resolve dependencies by calling `mm.GetByType(moduleType)[0].(ConcreteInterface)`. The type assertion panics on mismatch — the pattern assumes exactly one instance per type. Module types are defined in `api/v1/module/module.go`.
+Components resolve dependencies by calling `mm.GetByType(moduleType)[0].(ConcreteInterface)`. The type assertion panics on mismatch — the pattern assumes exactly one instance per type. Module types are defined in `api/v1/registry/module/module.go`.
 
 ### EventBus
 
-In-memory pub/sub: `Subscribe(topic, bufferLength)`, `Publish(topic, event)`. Non-blocking publish (drops events on full channels with a log). Topics are `EventType` string constants in `api/v1/event/event.go`. The `TaskPostman` bridges EventBus events to Transport for cross-node delivery.
+In-memory pub/sub: `Subscribe(topic, bufferLength)`, `Publish(topic, event)`. Non-blocking publish (drops events on full channels with a log). Topics are `EventType` string constants in `api/v1/messaging/event/event.go`. The `TaskPostman` bridges EventBus events to Transport for cross-node delivery.
 
 ### Provider Plugin System
 
@@ -111,22 +111,24 @@ Provider drivers (`vllm`, `ollama`) register themselves via `init()` in `pkg/inf
 
 ## API Types (`api/v1/`)
 
-Shared types with no internal dependencies. Key packages:
-- `task/` — `TaskPlan`, `TaskNode`, `TaskSpec`, `NodeState`, `PlanResult`, `TaskAd`
-- `event/` — `Event` struct, `EventType` constants
-- `taskmsg/` — Wire message types: `TaskBroadcastMsg`, `TaskRequestMsg`, `TaskAssignMsg`, `TaskResultMsg`
-- `capability/` — `CapabilityCV` with `Match()` scoring
-- `chat/` — `ChatRequest`, `ChatResponse`, `ChatMessage`, `ContentPart`
-- `provider/` — `Provider` interface, `ProviderConfig`
-- `module/` — `ModuleType`, `ModuleID`, `ModuleHealth`
-- `node/` — `NodeID`, `NodeMessage`, `Protocol`
-- `hardware/` — `HardwareSnapshot`, `GPUSnapshot`
+Shared types with no internal dependencies, organized by domain:
+- **`domain/`** — core domain entities
+  - `task/` — `TaskPlan`, `TaskNode`, `TaskSpec`, `NodeState`, `PlanResult`, `TaskAd`
+  - `chat/` — `ChatRequest`, `ChatResponse`, `ChatMessage`, `ContentPart`
+  - `capability/` — `CapabilityCV` with `Match()` scoring
+  - `hardware/` — `HardwareSnapshot`, `GPUSnapshot`
+  - `node/` — `NodeID`, `NodeMessage`, `Protocol`
+  - `provider/` — `Provider` interface, `ProviderConfig`
+- **`messaging/`** — event bus and wire messages
+  - `event/` — `Event` struct, `EventType` constants
+  - `taskmsg/` — Wire message types: `TaskBroadcastMsg`, `TaskRequestMsg`, `TaskAssignMsg`, `TaskResultMsg`
+- **`registry/`** — module registry
+  - `module/` — `ModuleType`, `ModuleID`, `ModuleHealth`
 
 ## Current State
 
-Active branch: `fix/sse-goroutine-leak`. Pending items from `docs/log.md`:
+Active branch: `main`. Pending items from `docs/log.md`:
 - Notify send in `Complete()` should use goroutine (currently blocks under lock at `manager.go:226`)
 - Provider model index in ProviderController for O(1) lookup
-- Delete `api/v1/other/` and `cmd/node/` (dead code)
 
 Future branches planned: `fix/tracer-gc` (unbounded map growth), `fix/notify-error-path` (Notify on all termination paths), `feat/context-manager` (session management).

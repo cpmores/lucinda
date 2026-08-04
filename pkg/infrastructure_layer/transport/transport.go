@@ -6,7 +6,7 @@ package transport
 import (
 	"context"
 
-	APINode "github.com/cpmores/lucinda/api/v1/node"
+	APINode "github.com/cpmores/lucinda/api/v1/domain/node"
 )
 
 // Transport is the interface dealing with messages between nodes
