@@ -112,7 +112,7 @@ func (p *postman) Stop() {
 	log.Println("postman: stopped")
 }
 
-func (p *postman) GetModuleType() APIModule.ModuleType { return APIModule.TASKPOSTMAN }
+func (p *postman) GetModuleType() APIModule.ModuleType { return APIModule.TaskPostman }
 func (p *postman) GetModuleID() APIModule.ModuleID {
 	return APIModule.NewModuleID(p.GetModuleType(), "default")
 }

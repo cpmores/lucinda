@@ -42,25 +42,25 @@ type executor struct {
 }
 
 func NewTaskExecutor(mm modulemanager.ModuleManager, sm taskstatemanager.TaskStateManager) TaskExecutor {
-	postmans := mm.GetByType(APIModule.TASKPOSTMAN)
+	postmans := mm.GetByType(APIModule.TaskPostman)
 	if len(postmans) == 0 {
 		log.Fatal("executor: no TaskPostman found")
 	}
 	pm := postmans[0].(taskpostman.Postman)
 
-	transports := mm.GetByType(APIModule.TRANSPORT)
+	transports := mm.GetByType(APIModule.Transport)
 	if len(transports) == 0 {
 		log.Fatal("executor: no Transport found")
 	}
 	tp := transports[0].(transport.Transport)
 
-	providers := mm.GetByType(APIModule.PROVIDERCONTROLLER)
+	providers := mm.GetByType(APIModule.ProviderController)
 	if len(providers) == 0 {
 		log.Fatal("executor: no ProviderController found")
 	}
 	pc := providers[0].(providerctrl.ProviderController)
 
-	tracers := mm.GetByType(APIModule.TASKTRACER)
+	tracers := mm.GetByType(APIModule.TaskTracer)
 	if len(tracers) == 0 {
 		log.Fatal("executor: no TaskTracer found")
 	}
@@ -198,7 +198,7 @@ func textFromResponse(resp *APIChat.ChatResponse) string {
 	return b.String()
 }
 
-func (e *executor) GetModuleType() APIModule.ModuleType { return APIModule.TASKEXECUTOR }
+func (e *executor) GetModuleType() APIModule.ModuleType { return APIModule.TaskExecutor }
 func (e *executor) GetModuleID() APIModule.ModuleID {
 	return APIModule.NewModuleID(e.GetModuleType(), "default")
 }

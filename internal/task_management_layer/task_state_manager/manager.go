@@ -356,7 +356,7 @@ func allDone(plan *APITask.TaskPlan) bool {
 	return true
 }
 
-func (m *manager) GetModuleType() APIModule.ModuleType { return APIModule.TASKSTATEMANAGER }
+func (m *manager) GetModuleType() APIModule.ModuleType { return APIModule.TaskStateManager }
 func (m *manager) GetModuleID() APIModule.ModuleID {
 	return APIModule.NewModuleID(m.GetModuleType(), "default")
 }

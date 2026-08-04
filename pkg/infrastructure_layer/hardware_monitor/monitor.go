@@ -151,7 +151,7 @@ func (m *monitor) collect() {
 // ── AvailableModule Interface ──────────────────────────────────────────────────────────
 
 func (m *monitor) GetModuleType() APIModule.ModuleType {
-	return APIModule.HARDWAREMONITOR
+	return APIModule.HardwareMonitor
 }
 
 func (m *monitor) GetModuleID() APIModule.ModuleID {

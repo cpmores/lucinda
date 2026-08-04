@@ -603,7 +603,7 @@ func (lt *Libp2pTransport) selfSendWorker(ctx context.Context, outCh <-chan APIN
 // ── AvailableModule Interface ──────────────────────────────────────────────────────────
 
 func (lt *Libp2pTransport) GetModuleType() APIModule.ModuleType {
-	return APIModule.TRANSPORT
+	return APIModule.Transport
 }
 
 func (lt *Libp2pTransport) GetModuleID() APIModule.ModuleID {

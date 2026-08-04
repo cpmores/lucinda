@@ -19,7 +19,7 @@ func (s *stubModule) RegisterWithManager(m ModuleManager) error        { return 
 
 func TestRegisterAndGet(t *testing.T) {
 	mgr := NewModuleManager()
-	mod := &stubModule{id: "eventbus-default", typ: APIModule.EVENTBUS}
+	mod := &stubModule{id: "eventbus-default", typ: APIModule.EventBus}
 	if err := mgr.Register(mod); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestRegisterAndGet(t *testing.T) {
 
 func TestRegisterDuplicate(t *testing.T) {
 	mgr := NewModuleManager()
-	mod := &stubModule{id: "dup", typ: APIModule.EVENTBUS}
+	mod := &stubModule{id: "dup", typ: APIModule.EventBus}
 	mgr.Register(mod)
 	if err := mgr.Register(mod); err == nil {
 		t.Fatal("expected error on duplicate Register, got nil")
@@ -43,7 +43,7 @@ func TestRegisterDuplicate(t *testing.T) {
 
 func TestUnregister(t *testing.T) {
 	mgr := NewModuleManager()
-	mgr.Register(&stubModule{id: "mod", typ: APIModule.EVENTBUS})
+	mgr.Register(&stubModule{id: "mod", typ: APIModule.EventBus})
 	if err := mgr.Unregister("mod"); err != nil {
 		t.Fatalf("Unregister: %v", err)
 	}
@@ -61,23 +61,23 @@ func TestUnregisterNotFound(t *testing.T) {
 
 func TestGetByType(t *testing.T) {
 	mgr := NewModuleManager()
-	mgr.Register(&stubModule{id: "eb-1", typ: APIModule.EVENTBUS})
-	mgr.Register(&stubModule{id: "eb-2", typ: APIModule.EVENTBUS})
-	mgr.Register(&stubModule{id: "tr-1", typ: APIModule.TRANSPORT})
+	mgr.Register(&stubModule{id: "eb-1", typ: APIModule.EventBus})
+	mgr.Register(&stubModule{id: "eb-2", typ: APIModule.EventBus})
+	mgr.Register(&stubModule{id: "tr-1", typ: APIModule.Transport})
 
-	if len(mgr.GetByType(APIModule.EVENTBUS)) != 2 {
+	if len(mgr.GetByType(APIModule.EventBus)) != 2 {
 		t.Fatal("expected 2 eventbus modules")
 	}
-	if len(mgr.GetByType(APIModule.TRANSPORT)) != 1 {
+	if len(mgr.GetByType(APIModule.Transport)) != 1 {
 		t.Fatal("expected 1 transport module")
 	}
 }
 
 func TestList(t *testing.T) {
 	mgr := NewModuleManager()
-	mgr.Register(&stubModule{id: "a", typ: APIModule.EVENTBUS})
-	mgr.Register(&stubModule{id: "b", typ: APIModule.TRANSPORT})
-	mgr.Register(&stubModule{id: "c", typ: APIModule.HARDWAREMONITOR})
+	mgr.Register(&stubModule{id: "a", typ: APIModule.EventBus})
+	mgr.Register(&stubModule{id: "b", typ: APIModule.Transport})
+	mgr.Register(&stubModule{id: "c", typ: APIModule.HardwareMonitor})
 	if len(mgr.List()) != 3 {
 		t.Fatal("expected 3 modules")
 	}
@@ -85,7 +85,7 @@ func TestList(t *testing.T) {
 
 func TestExists(t *testing.T) {
 	mgr := NewModuleManager()
-	mgr.Register(&stubModule{id: "exists", typ: APIModule.EVENTBUS})
+	mgr.Register(&stubModule{id: "exists", typ: APIModule.EventBus})
 	if !mgr.Exists("exists") {
 		t.Fatal("Exists should return true")
 	}
@@ -103,13 +103,13 @@ func TestGetNotFound(t *testing.T) {
 
 func TestGrantAndRequire(t *testing.T) {
 	mgr := NewModuleManager()
-	mgr.Grant(APIModule.TRANSPORT, APIModule.EVENTBUS)
+	mgr.Grant(APIModule.Transport, APIModule.EventBus)
 
-	target := &stubModule{id: "eb-default", typ: APIModule.EVENTBUS}
+	target := &stubModule{id: "eb-default", typ: APIModule.EventBus}
 	mgr.Register(target)
 
-	caller := &stubModule{id: "tr-default", typ: APIModule.TRANSPORT}
-	got, err := mgr.Require(caller, APIModule.EVENTBUS, "eb-default")
+	caller := &stubModule{id: "tr-default", typ: APIModule.Transport}
+	got, err := mgr.Require(caller, APIModule.EventBus, "eb-default")
 	if err != nil {
 		t.Fatalf("Require should succeed when granted: %v", err)
 	}
@@ -120,20 +120,20 @@ func TestGrantAndRequire(t *testing.T) {
 
 func TestRequireAccessDenied(t *testing.T) {
 	mgr := NewModuleManager()
-	mgr.Register(&stubModule{id: "eb-default", typ: APIModule.EVENTBUS})
+	mgr.Register(&stubModule{id: "eb-default", typ: APIModule.EventBus})
 
-	caller := &stubModule{id: "tr-default", typ: APIModule.TRANSPORT}
-	if _, err := mgr.Require(caller, APIModule.EVENTBUS, "eb-default"); err == nil {
+	caller := &stubModule{id: "tr-default", typ: APIModule.Transport}
+	if _, err := mgr.Require(caller, APIModule.EventBus, "eb-default"); err == nil {
 		t.Fatal("expected access denied error")
 	}
 }
 
 func TestGrantIdempotent(t *testing.T) {
 	mgr := NewModuleManager()
-	if err := mgr.Grant(APIModule.EVENTBUS, APIModule.TRANSPORT); err != nil {
+	if err := mgr.Grant(APIModule.EventBus, APIModule.Transport); err != nil {
 		t.Fatalf("first Grant: %v", err)
 	}
-	if err := mgr.Grant(APIModule.EVENTBUS, APIModule.TRANSPORT); err != nil {
+	if err := mgr.Grant(APIModule.EventBus, APIModule.Transport); err != nil {
 		t.Fatalf("second Grant should be idempotent: %v", err)
 	}
 }
@@ -142,7 +142,7 @@ func TestHealth(t *testing.T) {
 	mgr := NewModuleManager()
 	mgr.Register(&stubModule{
 		id:  "mod-1",
-		typ: APIModule.EVENTBUS,
+		typ: APIModule.EventBus,
 		health: APIModule.ModuleHealth{Status: APIModule.Running},
 	})
 	h, err := mgr.Health("mod-1")
@@ -163,8 +163,8 @@ func TestHealthNotFound(t *testing.T) {
 
 func TestHealthAll(t *testing.T) {
 	mgr := NewModuleManager()
-	mgr.Register(&stubModule{id: "a", typ: APIModule.EVENTBUS, health: APIModule.ModuleHealth{Status: APIModule.Running}})
-	mgr.Register(&stubModule{id: "b", typ: APIModule.TRANSPORT, health: APIModule.ModuleHealth{Status: APIModule.Stopped}})
+	mgr.Register(&stubModule{id: "a", typ: APIModule.EventBus, health: APIModule.ModuleHealth{Status: APIModule.Running}})
+	mgr.Register(&stubModule{id: "b", typ: APIModule.Transport, health: APIModule.ModuleHealth{Status: APIModule.Stopped}})
 	all := mgr.HealthAll()
 	if len(all) != 2 {
 		t.Fatalf("expected 2, got %d", len(all))
@@ -174,7 +174,7 @@ func TestHealthAll(t *testing.T) {
 func TestNewModuleManagerReturnsPointer(t *testing.T) {
 	mgr1 := NewModuleManager()
 	mgr2 := mgr1
-	mgr1.Register(&stubModule{id: "shared", typ: APIModule.EVENTBUS})
+	mgr1.Register(&stubModule{id: "shared", typ: APIModule.EventBus})
 	if !mgr2.Exists("shared") {
 		t.Fatal("mgr2 should see module registered on mgr1")
 	}

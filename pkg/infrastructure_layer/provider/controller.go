@@ -153,7 +153,7 @@ func (c *controller) GPU() APIHardware.GPUSnapshot {
 // ── AvailableModule Interface ──────────────────────────────────────────
 
 func (c *controller) GetModuleType() APIModule.ModuleType {
-	return APIModule.PROVIDERCONTROLLER
+	return APIModule.ProviderController
 }
 
 func (c *controller) GetModuleID() APIModule.ModuleID {

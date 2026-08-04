@@ -69,31 +69,31 @@ type board struct {
 }
 
 func NewTaskBoard(mm modulemanager.ModuleManager, sm taskstatemanager.TaskStateManager) TaskBoard {
-	postmans := mm.GetByType(APIModule.TASKPOSTMAN)
+	postmans := mm.GetByType(APIModule.TaskPostman)
 	if len(postmans) == 0 {
 		log.Fatal("taskboard: no TaskPostman module found")
 	}
 	postman := postmans[0].(taskpostman.Postman)
 
-	transports := mm.GetByType(APIModule.TRANSPORT)
+	transports := mm.GetByType(APIModule.Transport)
 	if len(transports) == 0 {
 		log.Fatal("taskboard: no Transport module found")
 	}
 	transport := transports[0].(transport.Transport)
 
-	taskTracers := mm.GetByType(APIModule.TASKTRACER)
+	taskTracers := mm.GetByType(APIModule.TaskTracer)
 	if len(taskTracers) == 0 {
 		log.Fatal("taskboard: no TaskTracer module found")
 	}
 	taskTracer := taskTracers[0].(tasktracer.TaskTracer)
 
-	providerControllers := mm.GetByType(APIModule.PROVIDERCONTROLLER)
+	providerControllers := mm.GetByType(APIModule.ProviderController)
 	if len(providerControllers) == 0 {
 		log.Fatal("taskboard: no ProviderController module found")
 	}
 	providerController := providerControllers[0].(providercontroller.ProviderController)
 
-	hardwareMonitors := mm.GetByType(APIModule.HARDWAREMONITOR)
+	hardwareMonitors := mm.GetByType(APIModule.HardwareMonitor)
 	if len(hardwareMonitors) == 0 {
 		log.Fatal("taskboard: no HardwareMonitor module found")
 	}
@@ -429,7 +429,7 @@ func (b *board) buildAssignMsg(task *APITask.Task) APITaskmsg.TaskAssignMsg {
 	return assign
 }
 
-func (b *board) GetModuleType() APIModule.ModuleType { return APIModule.TASKBOARD }
+func (b *board) GetModuleType() APIModule.ModuleType { return APIModule.TaskBoard }
 func (b *board) GetModuleID() APIModule.ModuleID {
 	return APIModule.NewModuleID(b.GetModuleType(), "default")
 }
