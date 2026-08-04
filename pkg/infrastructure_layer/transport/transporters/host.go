@@ -6,12 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
-	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 	APINode "github.com/cpmores/lucinda/api/v1/domain/node"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 	libp2p "github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -21,6 +20,7 @@ import (
 	"github.com/libp2p/go-msgio"
 	"github.com/multiformats/go-multiaddr"
 
+	"github.com/cpmores/lucinda/pkg/infrastructure_layer/logger"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )
 
@@ -54,12 +54,16 @@ type Libp2pTransport struct {
 
 	// mdnsService tracks the active mDNS discovery service for shutdown.
 	mdnsService mdns.Service
+
+	// log is the component logger; defaults to Discard when not provided.
+	log *logger.Logger
 }
 
 type Libp2pTransportOptions struct {
 	Addrs      []string
 	OutsLength int64
 	InsLength  int64
+	Logger     *logger.Logger
 }
 
 func NewLibp2pTransport(options Libp2pTransportOptions) (*Libp2pTransport, error) {
@@ -77,6 +81,13 @@ func NewLibp2pTransport(options Libp2pTransportOptions) (*Libp2pTransport, error
 		insLen = defaultInsLength
 	}
 
+	// Default to a silent logger when none is provided, so a nil logger
+	// can never panic a log call inside the transport.
+	log := options.Logger
+	if log == nil {
+		log = logger.Discard()
+	}
+
 	return &Libp2pTransport{
 		Options:    opts,
 		IsStarted:  false,
@@ -84,6 +95,7 @@ func NewLibp2pTransport(options Libp2pTransportOptions) (*Libp2pTransport, error
 		ins:        make(map[APINode.Protocol]chan APINode.NodeMessage),
 		outsLength: outsLen,
 		insLength:  insLen,
+		log:        log,
 	}, nil
 }
 
@@ -112,11 +124,11 @@ func (lt *Libp2pTransport) Start(ctx context.Context) error {
 	// register network notifee: clean up outbound channels when peers disconnect
 	host.Network().Notify(&network.NotifyBundle{
 		ConnectedF: func(n network.Network, conn network.Conn) {
-			log.Printf("libp2p transport: peer connected %s", conn.RemotePeer())
+			lt.log.Debug("peer connected", "peer", conn.RemotePeer())
 		},
 		DisconnectedF: func(n network.Network, conn network.Conn) {
 			peerID := conn.RemotePeer()
-			log.Printf("libp2p transport: peer disconnected %s, cleaning outbound channels", peerID)
+			lt.log.Debug("peer disconnected, cleaning outbound channels", "peer", peerID)
 			// Spawn a goroutine to avoid deadlocking with the swarm's
 			// internal notification lock during host.Close().
 			go lt.cleanOutboundChannelsForPeer(APINode.NodeID(peerID.String()))
@@ -126,13 +138,13 @@ func (lt *Libp2pTransport) Start(ctx context.Context) error {
 	// auto-shutdown when context is cancelled
 	go func() {
 		<-ctx.Done()
-		log.Printf("libp2p transport %s: context done, stopping", lt.NodeID)
+		lt.log.Info("context done, stopping")
 		if err := lt.Stop(); err != nil {
-			log.Printf("libp2p transport %s: stop error: %s", lt.NodeID, err)
+			lt.log.Error("stop error", "err", err)
 		}
 	}()
 
-	log.Printf("libp2p transport started: nodeID=%s addrs=%v", lt.NodeID, host.Addrs())
+	lt.log.Info("started", "node_id", lt.NodeID, "addrs", host.Addrs())
 	return nil
 }
 
@@ -179,7 +191,7 @@ func (lt *Libp2pTransport) Open(ctx context.Context, proto APINode.Protocol) err
 				}
 				var msg APINode.NodeMessage
 				if err := json.Unmarshal(msgBytes, &msg); err != nil {
-					log.Printf("libp2p transport: failed to unmarshal message on protocol %s: %s", proto, err)
+					lt.log.Error("failed to unmarshal message", "protocol", proto, "err", err)
 					continue
 				}
 				select {
@@ -187,13 +199,13 @@ func (lt *Libp2pTransport) Open(ctx context.Context, proto APINode.Protocol) err
 				case <-done:
 					return
 				default:
-					log.Printf("libp2p transport: incoming channel full for protocol %s, dropping message", proto)
+					lt.log.Warn("incoming channel full, dropping message", "protocol", proto)
 				}
 			}
 		}
 	})
 
-	log.Printf("libp2p transport: opened protocol %s", proto)
+	lt.log.Debug("opened protocol", "protocol", proto)
 	return nil
 }
 
@@ -219,7 +231,7 @@ func (lt *Libp2pTransport) Close(ctx context.Context, proto APINode.Protocol) er
 	// self-disconnect to clean up any self-connection for this protocol
 	lt.selfDisconnectLocked(proto)
 
-	log.Printf("libp2p transport: closed protocol %s", proto)
+	lt.log.Debug("closed protocol", "protocol", proto)
 	return nil
 }
 
@@ -235,14 +247,14 @@ func (lt *Libp2pTransport) Stop() error {
 	for proto, ch := range lt.ins {
 		close(ch)
 		delete(lt.ins, proto)
-		log.Printf("libp2p transport: closed incoming channel for protocol %s", proto)
+		lt.log.Debug("closed incoming channel", "protocol", proto)
 	}
 
 	// close all outgoing channels
 	for nodeID, protoMap := range lt.outs {
 		for proto, ch := range protoMap {
 			close(ch)
-			log.Printf("libp2p transport: closed outgoing channel for node=%s proto=%s", nodeID, proto)
+			lt.log.Debug("closed outgoing channel", "node", nodeID, "protocol", proto)
 		}
 		delete(lt.outs, nodeID)
 	}
@@ -259,7 +271,7 @@ func (lt *Libp2pTransport) Stop() error {
 
 	if mdnsSvc != nil {
 		if err := mdnsSvc.Close(); err != nil {
-			log.Printf("libp2p transport: failed to close mDNS service: %s", err)
+			lt.log.Error("failed to close mDNS service", "err", err)
 		}
 	}
 
@@ -269,7 +281,7 @@ func (lt *Libp2pTransport) Stop() error {
 		}
 	}
 
-	log.Printf("libp2p transport %s: stopped", lt.NodeID)
+	lt.log.Info("stopped")
 	return nil
 }
 
@@ -302,7 +314,7 @@ func (lt *Libp2pTransport) Publish(ctx context.Context, message APINode.NodeMess
 		}
 		nodeID := APINode.NodeID(p.String())
 		if err := lt.Send(ctx, nodeID, message); err != nil {
-			log.Printf("libp2p transport: publish to %s failed: %s", nodeID, err)
+			lt.log.Warn("publish failed", "node", nodeID, "err", err)
 			lastErr = err
 		}
 	}
@@ -350,7 +362,7 @@ func (lt *Libp2pTransport) sendWorker(ctx context.Context, to APINode.NodeID, pr
 
 	targetPeer, err := peer.Decode(string(to))
 	if err != nil {
-		log.Printf("libp2p transport: failed to decode peer ID %s: %s", to, err)
+		lt.log.Error("failed to decode peer ID", "to", to, "err", err)
 		return
 	}
 
@@ -367,7 +379,7 @@ func (lt *Libp2pTransport) sendWorker(ctx context.Context, to APINode.NodeID, pr
 			if stream == nil {
 				stream, err = lt.Host.NewStream(ctx, targetPeer, protocol.ID(protocolID))
 				if err != nil {
-					log.Printf("libp2p transport: failed to open stream to %s: %s", to, err)
+					lt.log.Error("failed to open stream", "to", to, "err", err)
 					continue
 				}
 				writer = msgio.NewVarintWriter(stream)
@@ -378,7 +390,7 @@ func (lt *Libp2pTransport) sendWorker(ctx context.Context, to APINode.NodeID, pr
 			msg.To = to
 			data, _ := json.Marshal(msg)
 			if err := writer.WriteMsg(data); err != nil {
-				log.Printf("libp2p transport: write error to %s, resetting stream: %s", to, err)
+				lt.log.Error("write error, resetting stream", "to", to, "err", err)
 				stream.Close()
 				stream = nil
 				writer = nil
@@ -416,7 +428,7 @@ func (lt *Libp2pTransport) Dial(ctx context.Context, targetAddr string) error {
 		return fmt.Errorf("failed to connect to %s: %w", targetAddr, err)
 	}
 
-	log.Printf("libp2p transport: connected to %s", targetAddr)
+	lt.log.Info("connected to", "addr", targetAddr)
 	return nil
 }
 
@@ -454,7 +466,7 @@ func (lt *Libp2pTransport) cleanOutboundChannelsForPeer(nodeID APINode.NodeID) {
 	// Recover from panic if Stop() already closed the channels first.
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("libp2p transport: recovered panic cleaning channels for %s: %v", nodeID, r)
+			lt.log.Warn("recovered panic cleaning channels", "node", nodeID, "recover", r)
 		}
 	}()
 
@@ -464,7 +476,7 @@ func (lt *Libp2pTransport) cleanOutboundChannelsForPeer(nodeID APINode.NodeID) {
 	if protoMap, ok := lt.outs[nodeID]; ok {
 		for proto, ch := range protoMap {
 			close(ch)
-			log.Printf("libp2p transport: cleaned outbound channel for node=%s proto=%s", nodeID, proto)
+			lt.log.Debug("cleaned outbound channel", "node", nodeID, "protocol", proto)
 		}
 		delete(lt.outs, nodeID)
 	}
@@ -480,6 +492,7 @@ const defaultMDNSNamespace = "lucinda"
 // it automatically connects and logs the result.
 type mdnsNotifee struct {
 	host host.Host
+	log  *logger.Logger
 }
 
 // HandlePeerFound is called by the mDNS service when a peer is discovered
@@ -495,10 +508,10 @@ func (n *mdnsNotifee) HandlePeerFound(pi peer.AddrInfo) {
 
 	ctx := context.Background()
 	if err := n.host.Connect(ctx, pi); err != nil {
-		log.Printf("libp2p mDNS: failed to connect to discovered peer %s: %s", pi.ID, err)
+		n.log.Error("failed to connect to discovered peer", "peer", pi.ID, "err", err)
 		return
 	}
-	log.Printf("libp2p mDNS: discovered and connected to peer %s", pi.ID)
+	n.log.Debug("discovered and connected to peer", "peer", pi.ID)
 }
 
 // DiscoverMDNS starts mDNS-based peer discovery on the local network.
@@ -517,7 +530,7 @@ func (lt *Libp2pTransport) DiscoverMDNS(namespace string) error {
 	}
 
 	if lt.mdnsService != nil {
-		log.Printf("libp2p mDNS: discovery already active, skipping")
+		lt.log.Warn("discovery already active, skipping")
 		return nil
 	}
 
@@ -525,7 +538,7 @@ func (lt *Libp2pTransport) DiscoverMDNS(namespace string) error {
 		namespace = defaultMDNSNamespace
 	}
 
-	notifee := &mdnsNotifee{host: lt.Host}
+	notifee := &mdnsNotifee{host: lt.Host, log: lt.log}
 	lt.mdnsService = mdns.NewMdnsService(lt.Host, namespace, notifee)
 
 	if err := lt.mdnsService.Start(); err != nil {
@@ -533,7 +546,7 @@ func (lt *Libp2pTransport) DiscoverMDNS(namespace string) error {
 		return fmt.Errorf("failed to start mDNS discovery: %w", err)
 	}
 
-	log.Printf("libp2p mDNS: discovery started on namespace %q", namespace)
+	lt.log.Info("discovery started", "namespace", namespace)
 	return nil
 }
 
@@ -594,7 +607,7 @@ func (lt *Libp2pTransport) selfSendWorker(ctx context.Context, outCh <-chan APIN
 			case <-ctx.Done():
 				return
 			default:
-				log.Printf("libp2p transport: self-send dropped, incoming channel full for message from %s", msg.From)
+				lt.log.Warn("self-send dropped, incoming channel full", "from", msg.From)
 			}
 		}
 	}
@@ -616,4 +629,12 @@ func (lt *Libp2pTransport) CheckHealth() APIModule.ModuleHealth {
 
 func (lt *Libp2pTransport) RegisterWithManager(manager modulemanager.ModuleManager) error {
 	return manager.Register(lt)
+}
+
+func (lt *Libp2pTransport) DependsOn() map[APIModule.ModuleType]string {
+	return nil
+}
+
+func (lt *Libp2pTransport) DependsEnable() error {
+	return nil
 }

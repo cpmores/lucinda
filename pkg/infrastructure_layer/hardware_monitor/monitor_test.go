@@ -6,21 +6,33 @@ import (
 	"testing"
 	"time"
 
-	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
 	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
+	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
+	"github.com/cpmores/lucinda/pkg/infrastructure_layer/logger"
+	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )
 
 func newTestMonitor(t *testing.T, repeatSec int64) (*monitor, eventbus.EventBus) {
 	t.Helper()
-	eb := eventbus.NewInMemoryEventBus()
-	m := NewHardwareMonitor(eb, repeatSec)
+	mm := modulemanager.NewModuleManager()
+	eb := eventbus.NewInMemoryEventBus(logger.Discard())
+	if err := eb.RegisterWithManager(mm); err != nil {
+		t.Fatalf("eventbus register: %v", err)
+	}
+	m := NewHardwareMonitor(repeatSec, logger.Discard())
+	if err := m.RegisterWithManager(mm); err != nil {
+		t.Fatalf("monitor register: %v", err)
+	}
+	if err := m.DependsEnable(); err != nil {
+		t.Fatalf("DependsEnable: %v", err)
+	}
 	return m, eb
 }
 
 func TestNewHardwareMonitor(t *testing.T) {
-	eb := eventbus.NewInMemoryEventBus()
-	m := NewHardwareMonitor(eb, 10)
+	m, _ := newTestMonitor(t, 10)
 	if m.IsStarted {
 		t.Fatal("monitor should not be started after New")
 	}
@@ -83,8 +95,7 @@ func TestDoubleStartError(t *testing.T) {
 }
 
 func TestStopBeforeStartError(t *testing.T) {
-	eb := eventbus.NewInMemoryEventBus()
-	m := NewHardwareMonitor(eb, 10)
+	m, _ := newTestMonitor(t, 10)
 	if err := m.Stop(); err == nil {
 		t.Fatal("expected error stopping before start, got nil")
 	}
@@ -118,8 +129,7 @@ func TestSnapshotUpdatesOverTime(t *testing.T) {
 }
 
 func TestSnapshotBeforeStartReturnsZero(t *testing.T) {
-	eb := eventbus.NewInMemoryEventBus()
-	m := NewHardwareMonitor(eb, 10)
+	m, _ := newTestMonitor(t, 10)
 	snap := m.Snapshot()
 	if snap.Timestamp != 0 {
 		t.Fatal("expected zero timestamp before Start")
@@ -160,8 +170,7 @@ func TestConcurrentSnapshot(t *testing.T) {
 }
 
 func TestStartCancelledContext(t *testing.T) {
-	eb := eventbus.NewInMemoryEventBus()
-	m := NewHardwareMonitor(eb, 60)
+	m, _ := newTestMonitor(t, 60)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -209,8 +218,7 @@ func TestMemoryValuesAreReasonable(t *testing.T) {
 }
 
 func TestPublishesHardwareChangedEvent(t *testing.T) {
-	eb := eventbus.NewInMemoryEventBus()
-	m := NewHardwareMonitor(eb, 60)
+	m, eb := newTestMonitor(t, 60)
 
 	ch := eb.Subscribe(APIEvent.HardwareChanged, 10)
 
@@ -236,5 +244,82 @@ func TestPublishesHardwareChangedEvent(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for HardwareChanged event")
+	}
+}
+
+func TestMonitorRegisterDependsOnEventBus(t *testing.T) {
+	mm := modulemanager.NewModuleManager()
+
+	eb := eventbus.NewInMemoryEventBus(logger.Discard())
+	if err := eb.RegisterWithManager(mm); err != nil {
+		t.Fatalf("eventbus register: %v", err)
+	}
+
+	m := NewHardwareMonitor(10, logger.Discard())
+	if err := m.RegisterWithManager(mm); err != nil {
+		t.Fatalf("monitor register: %v", err)
+	}
+
+	if err := mm.VerifyInit(); err != nil {
+		t.Fatalf("VerifyInit should pass when eventbus is registered: %v", err)
+	}
+
+	if err := mm.EnableDeps(); err != nil {
+		t.Fatalf("EnableDeps: %v", err)
+	}
+	if m.eventBus == nil {
+		t.Fatal("expected eventBus resolved after EnableDeps")
+	}
+}
+
+func TestMonitorDependsEnableResolves(t *testing.T) {
+	mm := modulemanager.NewModuleManager()
+
+	eb := eventbus.NewInMemoryEventBus(logger.Discard())
+	if err := eb.RegisterWithManager(mm); err != nil {
+		t.Fatalf("eventbus register: %v", err)
+	}
+
+	m := NewHardwareMonitor(10, logger.Discard())
+	if err := m.RegisterWithManager(mm); err != nil {
+		t.Fatalf("monitor register: %v", err)
+	}
+
+	// DependsOn declares which instance name each dependency resolves to.
+	if got := m.DependsOn()[APIModule.EventBus]; got != "default" {
+		t.Fatalf("expected eventbus dep name \"default\", got %q", got)
+	}
+
+	if err := m.DependsEnable(); err != nil {
+		t.Fatalf("DependsEnable: %v", err)
+	}
+	if m.eventBus == nil {
+		t.Fatal("expected eventBus resolved")
+	}
+}
+
+func TestMonitorDependsEnableFailsWhenMissing(t *testing.T) {
+	mm := modulemanager.NewModuleManager()
+
+	m := NewHardwareMonitor(10, logger.Discard())
+	if err := m.RegisterWithManager(mm); err != nil {
+		t.Fatalf("monitor register: %v", err)
+	}
+
+	if err := m.DependsEnable(); err == nil {
+		t.Fatal("expected DependsEnable to fail when eventbus is not registered")
+	}
+}
+
+func TestMonitorVerifyInitFailsWithoutEventBus(t *testing.T) {
+	mm := modulemanager.NewModuleManager()
+
+	m := NewHardwareMonitor(10, logger.Discard())
+	if err := m.RegisterWithManager(mm); err != nil {
+		t.Fatalf("monitor register: %v", err)
+	}
+
+	if err := mm.VerifyInit(); err == nil {
+		t.Fatal("expected VerifyInit to fail when eventbus is not registered")
 	}
 }

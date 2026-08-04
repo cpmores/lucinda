@@ -19,6 +19,7 @@ const (
 	HardwareMonitor    ModuleType = "hardware_monitor"
 	ModuleManager      ModuleType = "module_manager"
 	ProviderController ModuleType = "provider_controller"
+	Logger             ModuleType = "logger"
 )
 
 // Module Status

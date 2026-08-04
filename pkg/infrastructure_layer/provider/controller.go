@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
-	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 	APIProvider "github.com/cpmores/lucinda/api/v1/domain/provider"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/provider/drivers"
 	"github.com/spf13/viper"
@@ -170,4 +170,12 @@ func (c *controller) CheckHealth() APIModule.ModuleHealth {
 
 func (c *controller) RegisterWithManager(manager modulemanager.ModuleManager) error {
 	return manager.Register(c)
+}
+
+func (c *controller) DependsOn() map[APIModule.ModuleType]string {
+	return nil
+}
+
+func (c *controller) DependsEnable() error {
+	return nil
 }

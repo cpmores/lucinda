@@ -1,21 +1,26 @@
 package manager
 
 import (
+	"fmt"
 	"testing"
 
 	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 )
 
 type stubModule struct {
-	id     APIModule.ModuleID
-	typ    APIModule.ModuleType
-	health APIModule.ModuleHealth
+	id        APIModule.ModuleID
+	typ       APIModule.ModuleType
+	deps      map[APIModule.ModuleType]string
+	health    APIModule.ModuleHealth
+	enableErr error
 }
 
-func (s *stubModule) GetModuleID() APIModule.ModuleID           { return s.id }
-func (s *stubModule) GetModuleType() APIModule.ModuleType       { return s.typ }
-func (s *stubModule) CheckHealth() APIModule.ModuleHealth       { return s.health }
-func (s *stubModule) RegisterWithManager(m ModuleManager) error { return nil }
+func (s *stubModule) GetModuleID() APIModule.ModuleID            { return s.id }
+func (s *stubModule) GetModuleType() APIModule.ModuleType        { return s.typ }
+func (s *stubModule) CheckHealth() APIModule.ModuleHealth        { return s.health }
+func (s *stubModule) RegisterWithManager(m ModuleManager) error  { return nil }
+func (s *stubModule) DependsOn() map[APIModule.ModuleType]string { return s.deps }
+func (s *stubModule) DependsEnable() error                       { return s.enableErr }
 
 func TestRegisterAndGet(t *testing.T) {
 	mgr := NewModuleManager()
@@ -177,5 +182,47 @@ func TestNewModuleManagerReturnsPointer(t *testing.T) {
 	mgr1.Register(&stubModule{id: "shared", typ: APIModule.EventBus})
 	if !mgr2.Exists("shared") {
 		t.Fatal("mgr2 should see module registered on mgr1")
+	}
+}
+
+func TestVerifyInitPassesWhenDepsRegistered(t *testing.T) {
+	mgr := NewModuleManager()
+	mgr.Register(&stubModule{id: "eb-default", typ: APIModule.EventBus})
+	mgr.Register(&stubModule{
+		id:   "hm-default",
+		typ:  APIModule.HardwareMonitor,
+		deps: map[APIModule.ModuleType]string{APIModule.EventBus: "default"},
+	})
+	if err := mgr.VerifyInit(); err != nil {
+		t.Fatalf("VerifyInit should pass when deps registered: %v", err)
+	}
+}
+
+func TestVerifyInitFailsOnMissingDep(t *testing.T) {
+	mgr := NewModuleManager()
+	mgr.Register(&stubModule{
+		id:   "hm-default",
+		typ:  APIModule.HardwareMonitor,
+		deps: map[APIModule.ModuleType]string{APIModule.EventBus: "default"},
+	})
+	if err := mgr.VerifyInit(); err == nil {
+		t.Fatal("expected VerifyInit to fail when dependency is missing")
+	}
+}
+
+func TestEnableDepsCallsEachModule(t *testing.T) {
+	mgr := NewModuleManager()
+	mgr.Register(&stubModule{id: "a", typ: APIModule.EventBus})
+	mgr.Register(&stubModule{id: "b", typ: APIModule.Transport})
+	if err := mgr.EnableDeps(); err != nil {
+		t.Fatalf("EnableDeps: %v", err)
+	}
+}
+
+func TestEnableDepsPropagatesError(t *testing.T) {
+	mgr := NewModuleManager()
+	mgr.Register(&stubModule{id: "a", typ: APIModule.EventBus, enableErr: fmt.Errorf("boom")})
+	if err := mgr.EnableDeps(); err == nil {
+		t.Fatal("expected EnableDeps to propagate module error")
 	}
 }

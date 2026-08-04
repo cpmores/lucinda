@@ -3,10 +3,12 @@
 package eventbus
 
 import (
-	"log"
 	"sync"
 
 	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
+	"github.com/cpmores/lucinda/pkg/infrastructure_layer/logger"
+	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )
 
 type EventBus interface {
@@ -19,13 +21,15 @@ type EventBus interface {
 // InMemoryEventBus is an implementation of the EventBus interface that stores subscribers in memory.
 type InMemoryEventBus struct {
 	sync.RWMutex
+	log         *logger.Logger
 	subscribers map[APIEvent.EventType][]chan APIEvent.Event
 }
 
 // NewInMemoryEventBus creates a new instance of InMemoryEventBus
 // returns a pointer to the newly created InMemoryEventBus
-func NewInMemoryEventBus() *InMemoryEventBus {
+func NewInMemoryEventBus(log *logger.Logger) *InMemoryEventBus {
 	return &InMemoryEventBus{
+		log:         log,
 		subscribers: make(map[APIEvent.EventType][]chan APIEvent.Event),
 	}
 }
@@ -74,7 +78,7 @@ func (eb *InMemoryEventBus) Publish(topic APIEvent.EventType, event APIEvent.Eve
 			select {
 			case ch <- event:
 			default:
-				log.Printf("Event bus: channel for topic %s is full, skipping subscriber", topic)
+				eb.log.Warn("channel full, skipping subscriber", "topic", topic)
 			}
 		}
 	}
@@ -92,5 +96,31 @@ func (eb *InMemoryEventBus) Release() error {
 		}
 	}
 
+	return nil
+}
+
+// ── AvailableModule Interface ──────────────────────────────────────────────────────────
+
+func (eb *InMemoryEventBus) GetModuleType() APIModule.ModuleType {
+	return APIModule.EventBus
+}
+
+func (eb *InMemoryEventBus) GetModuleID() APIModule.ModuleID {
+	return APIModule.NewModuleID(eb.GetModuleType(), "default")
+}
+
+func (eb *InMemoryEventBus) CheckHealth() APIModule.ModuleHealth {
+	return APIModule.NewModuleHealth(eb.GetModuleID(), eb.GetModuleType(), APIModule.Running)
+}
+
+func (eb *InMemoryEventBus) RegisterWithManager(manager modulemanager.ModuleManager) error {
+	return manager.Register(eb)
+}
+
+func (eb *InMemoryEventBus) DependsOn() map[APIModule.ModuleType]string {
+	return nil
+}
+
+func (eb *InMemoryEventBus) DependsEnable() error {
 	return nil
 }

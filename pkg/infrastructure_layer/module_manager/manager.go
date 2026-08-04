@@ -17,6 +17,8 @@ type AvailableModule interface {
 	GetModuleID() APIModule.ModuleID
 	CheckHealth() APIModule.ModuleHealth
 	RegisterWithManager(m ModuleManager) error
+	DependsOn() map[APIModule.ModuleType]string
+	DependsEnable() error
 }
 
 // ModuleManager defines the interface for managing modules,
@@ -39,6 +41,16 @@ type ModuleManager interface {
 	// ── Health ────────────────────────────────────────────────
 	Health(id APIModule.ModuleID) (APIModule.ModuleHealth, error)
 	HealthAll() map[APIModule.ModuleID]APIModule.ModuleHealth
+
+	// ── Init verification ────────────────────────────────────
+	// VerifyInit checks that every registered module's DependsOn()
+	// types are themselves registered. Call after all modules are
+	// registered, before starting services.
+	VerifyInit() error
+	// EnableDeps wires each module's declared dependencies after
+	// VerifyInit, calling DependsEnable() on every module so it can
+	// resolve its dependencies from the registry using its DependsOn() map.
+	EnableDeps() error
 }
 
 // Manager implements ModuleManager with a RWMutex-guarded registry.
@@ -183,4 +195,51 @@ func (m *Manager) HealthAll() map[APIModule.ModuleID]APIModule.ModuleHealth {
 		result[id] = mod.CheckHealth()
 	}
 	return result
+}
+
+// VerifyInit checks that every registered module's dependencies are
+// themselves registered. Call once after all modules have registered,
+// before starting any services.
+func (m *Manager) VerifyInit() error {
+	m.RLock()
+	defer m.RUnlock()
+
+	for id, mod := range m.modules {
+		for dep := range mod.DependsOn() {
+			if !m.typeRegistered(dep) {
+				return fmt.Errorf("module %s depends on %s which is not registered", id, dep)
+			}
+		}
+	}
+	return nil
+}
+
+// typeRegistered reports whether any registered module has the given type.
+// Caller must hold at least m.RLock().
+func (m *Manager) typeRegistered(t APIModule.ModuleType) bool {
+	for _, mod := range m.modules {
+		if mod.GetModuleType() == t {
+			return true
+		}
+	}
+	return false
+}
+
+// EnableDeps calls DependsEnable() on every registered module so each can
+// resolve its declared dependencies (from its DependsOn() map) against the
+// registry. Call after VerifyInit and before starting any services.
+func (m *Manager) EnableDeps() error {
+	m.RLock()
+	mods := make([]AvailableModule, 0, len(m.modules))
+	for _, mod := range m.modules {
+		mods = append(mods, mod)
+	}
+	m.RUnlock()
+
+	for _, mod := range mods {
+		if err := mod.DependsEnable(); err != nil {
+			return fmt.Errorf("enable deps for %s: %w", mod.GetModuleID(), err)
+		}
+	}
+	return nil
 }

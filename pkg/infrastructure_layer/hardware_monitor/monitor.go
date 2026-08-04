@@ -4,7 +4,6 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"log"
 	"runtime"
 	"sync"
 	"time"
@@ -12,10 +11,11 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 
-	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
 	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
+	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
 	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
+	"github.com/cpmores/lucinda/pkg/infrastructure_layer/logger"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )
 
@@ -28,7 +28,9 @@ type HardwareMonitor interface {
 
 type monitor struct {
 	sync.RWMutex
-	eventBus      eventbus.EventBus
+	eventBus      eventbus.EventBus // resolved via DependsEnable
+	mm            modulemanager.ModuleManager
+	log           *logger.Logger
 	IsStarted     bool
 	RepeatSec     int64
 	Cache         APIHardware.HardwareSnapshot
@@ -36,9 +38,9 @@ type monitor struct {
 }
 
 // NewHardwareMonitor creates a new instance of the hardware monitor.
-func NewHardwareMonitor(eventBus eventbus.EventBus, repeatSec int64) *monitor {
+func NewHardwareMonitor(repeatSec int64, log *logger.Logger) *monitor {
 	return &monitor{
-		eventBus:  eventBus,
+		log:       log,
 		IsStarted: false,
 		RepeatSec: repeatSec,
 	}
@@ -63,7 +65,7 @@ func (m *monitor) Start(ctx context.Context) error {
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println("hardware monitor: context done, stopping polling")
+				m.log.Info("context done, stopping polling")
 				return
 			case <-ticker.C:
 				m.collect()
@@ -71,7 +73,7 @@ func (m *monitor) Start(ctx context.Context) error {
 		}
 	}()
 
-	log.Printf("hardware monitor: started (interval=%ds, cores=%d)", m.RepeatSec, m.Snapshot().CPUSnapshot.Cores)
+	m.log.Info("started", "interval_sec", m.RepeatSec, "cores", m.Snapshot().CPUSnapshot.Cores)
 	return nil
 }
 
@@ -83,7 +85,7 @@ func (m *monitor) Stop() error {
 		return fmt.Errorf("monitor is not started")
 	}
 	m.IsStarted = false
-	log.Println("hardware monitor: stopped")
+	m.log.Info("stopped")
 	return nil
 }
 
@@ -105,7 +107,7 @@ func (m *monitor) collect() {
 	var usagePct float64
 	pcts, err := cpu.PercentWithContext(ctx, 0, false)
 	if err != nil {
-		log.Printf("hardware monitor: cpu.PercentWithContext failed: %s", err)
+		m.log.Error("cpu.PercentWithContext failed", "err", err)
 	} else if len(pcts) > 0 {
 		usagePct = pcts[0]
 	}
@@ -114,7 +116,7 @@ func (m *monitor) collect() {
 	var memSnap APIHardware.MemorySnapshot
 	vmem, err := mem.VirtualMemoryWithContext(ctx)
 	if err != nil {
-		log.Printf("hardware monitor: mem.VirtualMemoryWithContext failed: %s", err)
+		m.log.Error("mem.VirtualMemoryWithContext failed", "err", err)
 	} else {
 		memSnap = APIHardware.MemorySnapshot{
 			TotalBytes: int64(vmem.Total),
@@ -141,8 +143,10 @@ func (m *monitor) collect() {
 	m.Unlock()
 
 	if APIHardware.SignificantChange(prev, snap) {
-		log.Printf("hardware monitor: significant change detected -- cpu=%.1f%% mem=%d/%d",
-			snap.CPUSnapshot.UsagePct, snap.MemorySnapshot.FreeBytes, snap.MemorySnapshot.TotalBytes)
+		m.log.Info("significant change detected",
+			"cpu_pct", snap.CPUSnapshot.UsagePct,
+			"mem_free", snap.MemorySnapshot.FreeBytes,
+			"mem_total", snap.MemorySnapshot.TotalBytes)
 		m.eventBus.Publish(APIEvent.HardwareChanged,
 			APIEvent.NewEvent(APIEvent.HardwareChanged, snap))
 	}
@@ -163,5 +167,28 @@ func (m *monitor) CheckHealth() APIModule.ModuleHealth {
 }
 
 func (m *monitor) RegisterWithManager(manager modulemanager.ModuleManager) error {
+	m.mm = manager
 	return manager.Register(m)
+}
+
+func (m *monitor) DependsOn() map[APIModule.ModuleType]string {
+	return map[APIModule.ModuleType]string{APIModule.EventBus: "default"}
+}
+
+// DependsEnable resolves every dependency declared in DependsOn() from the
+// registry and stores it. Called by ModuleManager.EnableDeps after VerifyInit.
+func (m *monitor) DependsEnable() error {
+	for depType, name := range m.DependsOn() {
+		id := APIModule.NewModuleID(depType, name)
+		mod, err := m.mm.Get(id)
+		if err != nil {
+			return fmt.Errorf("resolve dependency %s: %w", id, err)
+		}
+		eb, ok := mod.(eventbus.EventBus)
+		if !ok {
+			return fmt.Errorf("dependency %s is not an EventBus", id)
+		}
+		m.eventBus = eb
+	}
+	return nil
 }

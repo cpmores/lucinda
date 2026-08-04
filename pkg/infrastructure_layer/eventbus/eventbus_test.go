@@ -5,10 +5,11 @@ import (
 	"time"
 
 	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
+	"github.com/cpmores/lucinda/pkg/infrastructure_layer/logger"
 )
 
 func TestNewInMemoryEventBus(t *testing.T) {
-	bus := NewInMemoryEventBus()
+	bus := NewInMemoryEventBus(logger.Discard())
 	if bus == nil {
 		t.Fatal("NewInMemoryEventBus returned nil")
 	}
@@ -18,7 +19,7 @@ func TestNewInMemoryEventBus(t *testing.T) {
 }
 
 func TestSubscribe(t *testing.T) {
-	bus := NewInMemoryEventBus()
+	bus := NewInMemoryEventBus(logger.Discard())
 	topic := APIEvent.EventType("test.topic")
 
 	ch := bus.Subscribe(topic, 10)
@@ -38,7 +39,7 @@ func TestSubscribe(t *testing.T) {
 }
 
 func TestSubscribeMultipleTopics(t *testing.T) {
-	bus := NewInMemoryEventBus()
+	bus := NewInMemoryEventBus(logger.Discard())
 	topicA := APIEvent.EventType("topic.a")
 	topicB := APIEvent.EventType("topic.b")
 
@@ -57,7 +58,7 @@ func TestSubscribeMultipleTopics(t *testing.T) {
 }
 
 func TestPublishToSingleSubscriber(t *testing.T) {
-	bus := NewInMemoryEventBus()
+	bus := NewInMemoryEventBus(logger.Discard())
 	topic := APIEvent.EventType("test.topic")
 	ch := bus.Subscribe(topic, 5)
 
@@ -88,7 +89,7 @@ func TestPublishToSingleSubscriber(t *testing.T) {
 }
 
 func TestPublishToMultipleSubscribers(t *testing.T) {
-	bus := NewInMemoryEventBus()
+	bus := NewInMemoryEventBus(logger.Discard())
 	topic := APIEvent.EventType("test.topic")
 
 	ch1 := bus.Subscribe(topic, 5)
@@ -113,7 +114,7 @@ func TestPublishToMultipleSubscribers(t *testing.T) {
 }
 
 func TestPublishToTopicWithNoSubscribers(t *testing.T) {
-	bus := NewInMemoryEventBus()
+	bus := NewInMemoryEventBus(logger.Discard())
 	topic := APIEvent.EventType("nobody.here")
 
 	// Should not panic or error — just a no-op.
@@ -123,7 +124,7 @@ func TestPublishToTopicWithNoSubscribers(t *testing.T) {
 }
 
 func TestUnsubscribe(t *testing.T) {
-	bus := NewInMemoryEventBus()
+	bus := NewInMemoryEventBus(logger.Discard())
 	topic := APIEvent.EventType("test.topic")
 	ch := bus.Subscribe(topic, 5)
 
@@ -149,7 +150,7 @@ func TestUnsubscribe(t *testing.T) {
 }
 
 func TestUnsubscribeOnlyRemovesTargetChannel(t *testing.T) {
-	bus := NewInMemoryEventBus()
+	bus := NewInMemoryEventBus(logger.Discard())
 	topic := APIEvent.EventType("test.topic")
 
 	ch1 := bus.Subscribe(topic, 5)
@@ -181,7 +182,7 @@ func TestUnsubscribeOnlyRemovesTargetChannel(t *testing.T) {
 }
 
 func TestUnsubscribeNonexistentChannel(t *testing.T) {
-	bus := NewInMemoryEventBus()
+	bus := NewInMemoryEventBus(logger.Discard())
 	topic := APIEvent.EventType("test.topic")
 	ch := make(chan APIEvent.Event, 1)
 
@@ -190,7 +191,7 @@ func TestUnsubscribeNonexistentChannel(t *testing.T) {
 }
 
 func TestChannelFullDropsMessage(t *testing.T) {
-	bus := NewInMemoryEventBus()
+	bus := NewInMemoryEventBus(logger.Discard())
 	topic := APIEvent.EventType("test.topic")
 
 	// Create a channel with capacity 1 and fill it.
@@ -222,7 +223,7 @@ func TestChannelFullDropsMessage(t *testing.T) {
 }
 
 func TestConcurrentPublishSubscribe(t *testing.T) {
-	bus := NewInMemoryEventBus()
+	bus := NewInMemoryEventBus(logger.Discard())
 	topic := APIEvent.EventType("concurrent")
 
 	const numSubscribers = 10
@@ -260,7 +261,7 @@ func TestConcurrentPublishSubscribe(t *testing.T) {
 }
 
 func TestMultiplePublishEventsInOrder(t *testing.T) {
-	bus := NewInMemoryEventBus()
+	bus := NewInMemoryEventBus(logger.Discard())
 	topic := APIEvent.EventType("ordered")
 
 	ch := bus.Subscribe(topic, 10)
