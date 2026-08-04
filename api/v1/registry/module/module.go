@@ -19,13 +19,6 @@ const (
 	HardwareMonitor    ModuleType = "hardware_monitor"
 	ModuleManager      ModuleType = "module_manager"
 	ProviderController ModuleType = "provider_controller"
-	TaskPostman        ModuleType = "task_postman"
-	TaskBoard          ModuleType = "task_board"
-	TaskStateManager   ModuleType = "task_state_manager"
-	TaskTracer         ModuleType = "task_tracer"
-	TaskPlanner        ModuleType = "task_planner"
-	TaskReducer        ModuleType = "task_reducer"
-	TaskExecutor       ModuleType = "task_executor"
 )
 
 // Module Status

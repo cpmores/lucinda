@@ -16,10 +16,6 @@ type EventType string
 type EventOnComplete func(data any) error
 
 const (
-	// User
-	UserRequestReceived EventType = "user.requested"
-	UserResponseSent    EventType = "user.responded"
-
 	// Task lifecycle
 	TaskPreplanned  EventType = "task.preplanned" // single-node plan, preplanned, subscribed by planner
 	TaskReady       EventType = "task.ready"
