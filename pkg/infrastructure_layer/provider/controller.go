@@ -8,8 +8,8 @@ import (
 	APIHardware "github.com/cpmores/lucinda/api/v1/hardware"
 	APIModule "github.com/cpmores/lucinda/api/v1/module"
 	APIProvider "github.com/cpmores/lucinda/api/v1/provider"
-	"github.com/cpmores/lucinda/pkg/infrastructure_layer/provider/drivers"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
+	"github.com/cpmores/lucinda/pkg/infrastructure_layer/provider/drivers"
 	"github.com/spf13/viper"
 )
 
@@ -21,7 +21,7 @@ type ProviderController interface {
 	Get(id string) (APIProvider.Provider, error)
 	List() []APIProvider.Provider
 	GetPlanProv() (APIProvider.Provider, error) // first available provider for planning
-	MaxContext() int                             // context window of the first available provider
+	MaxContext() int                            // context window of the first available provider
 	Health(id string) (APIProvider.ProviderHealth, error)
 	HealthAll() []APIProvider.ProviderHealth
 	GPU() APIHardware.GPUSnapshot

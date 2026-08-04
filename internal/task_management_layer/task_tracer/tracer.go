@@ -6,8 +6,8 @@ import (
 	"sync"
 
 	APIModule "github.com/cpmores/lucinda/api/v1/module"
-	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 	APITask "github.com/cpmores/lucinda/api/v1/task"
+	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )
 
 type TaskTracer interface {
@@ -127,6 +127,10 @@ func (t *tracer) ListAssigned() []*APITask.Task {
 }
 
 func (t *tracer) GetModuleType() APIModule.ModuleType { return APIModule.TaskTracer }
-func (t *tracer) GetModuleID() APIModule.ModuleID { return APIModule.NewModuleID(t.GetModuleType(), "default") }
-func (t *tracer) CheckHealth() APIModule.ModuleHealth { return APIModule.NewModuleHealth(t.GetModuleID(), t.GetModuleType(), APIModule.Running) }
+func (t *tracer) GetModuleID() APIModule.ModuleID {
+	return APIModule.NewModuleID(t.GetModuleType(), "default")
+}
+func (t *tracer) CheckHealth() APIModule.ModuleHealth {
+	return APIModule.NewModuleHealth(t.GetModuleID(), t.GetModuleType(), APIModule.Running)
+}
 func (t *tracer) RegisterWithManager(m modulemanager.ModuleManager) error { return m.Register(t) }

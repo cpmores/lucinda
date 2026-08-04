@@ -103,7 +103,7 @@ func (p *OllamaProvider) MaxContextTokens() int {
 	}
 	return 2048
 }
-func (p *OllamaProvider) GetCreatedAt() int64               { return p.createdAt }
+func (p *OllamaProvider) GetCreatedAt() int64 { return p.createdAt }
 
 func (p *OllamaProvider) GetInfo() APIProvider.ProviderInfo {
 	return APIProvider.ProviderInfo{

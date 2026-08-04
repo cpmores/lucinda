@@ -18,23 +18,23 @@ func makePlan() *APITask.TaskPlan {
 		Nodes: map[APITask.TaskID]*APITask.TaskNode{
 			"parse": {
 				ID: "parse", Spec: APITask.TaskSpec{
-				Model: "gemma3", BudgetTokens: 100, Priority: 0},
+					Model: "gemma3", BudgetTokens: 100, Priority: 0},
 			},
 			"profile": {
 				ID: "profile", Spec: APITask.TaskSpec{
-				Model: "gemma3", BudgetTokens: 100, Priority: 0},
+					Model: "gemma3", BudgetTokens: 100, Priority: 0},
 			},
 			"extract": {
 				ID: "extract", Spec: APITask.TaskSpec{
-				Model: "gemma3", BudgetTokens: 200, Priority: 0},
+					Model: "gemma3", BudgetTokens: 200, Priority: 0},
 			},
 			"analyze": {
 				ID: "analyze", Spec: APITask.TaskSpec{
-				Model: "gemma3", BudgetTokens: 300, Priority: 0},
+					Model: "gemma3", BudgetTokens: 300, Priority: 0},
 			},
 			"reduce": {
 				ID: "reduce", Spec: APITask.TaskSpec{
-				Model: "gemma3", BudgetTokens: 150, Priority: 0},
+					Model: "gemma3", BudgetTokens: 150, Priority: 0},
 			},
 		},
 		Successors: map[APITask.TaskID][]APITask.TaskID{

@@ -60,9 +60,9 @@ type chatCompletionResponse struct {
 }
 
 type choice struct {
-	Index   int                  `json:"index"`
-	Message chatResponseMessage  `json:"message"`
-	Delta   delta                `json:"delta"`
+	Index   int                 `json:"index"`
+	Message chatResponseMessage `json:"message"`
+	Delta   delta               `json:"delta"`
 }
 
 type delta struct {
@@ -139,7 +139,7 @@ func (p *VLLMProvider) MaxContextTokens() int {
 	}
 	return 2048
 }
-func (p *VLLMProvider) GetCreatedAt() int64               { return p.createdAt }
+func (p *VLLMProvider) GetCreatedAt() int64 { return p.createdAt }
 
 func (p *VLLMProvider) GetInfo() APIProvider.ProviderInfo {
 	return APIProvider.ProviderInfo{

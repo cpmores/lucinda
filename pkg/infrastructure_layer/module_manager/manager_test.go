@@ -12,10 +12,10 @@ type stubModule struct {
 	health APIModule.ModuleHealth
 }
 
-func (s *stubModule) GetModuleID() APIModule.ModuleID               { return s.id }
-func (s *stubModule) GetModuleType() APIModule.ModuleType             { return s.typ }
-func (s *stubModule) CheckHealth() APIModule.ModuleHealth              { return s.health }
-func (s *stubModule) RegisterWithManager(m ModuleManager) error        { return nil }
+func (s *stubModule) GetModuleID() APIModule.ModuleID           { return s.id }
+func (s *stubModule) GetModuleType() APIModule.ModuleType       { return s.typ }
+func (s *stubModule) CheckHealth() APIModule.ModuleHealth       { return s.health }
+func (s *stubModule) RegisterWithManager(m ModuleManager) error { return nil }
 
 func TestRegisterAndGet(t *testing.T) {
 	mgr := NewModuleManager()
@@ -141,8 +141,8 @@ func TestGrantIdempotent(t *testing.T) {
 func TestHealth(t *testing.T) {
 	mgr := NewModuleManager()
 	mgr.Register(&stubModule{
-		id:  "mod-1",
-		typ: APIModule.EventBus,
+		id:     "mod-1",
+		typ:    APIModule.EventBus,
 		health: APIModule.ModuleHealth{Status: APIModule.Running},
 	})
 	h, err := mgr.Health("mod-1")
