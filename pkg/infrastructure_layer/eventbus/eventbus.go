@@ -13,9 +13,8 @@ type EventBus interface {
 	Subscribe(topic APIevent.EventType, length int64) chan APIevent.Event
 	UnSubscribe(topic APIevent.EventType, ch chan APIevent.Event)
 	Publish(topic APIevent.EventType, event APIevent.Event) error
+	Release() error
 }
-
-// HACK:
 
 // InMemoryEventBus is an implementation of the EventBus interface that stores subscribers in memory.
 type InMemoryEventBus struct {
@@ -77,6 +76,19 @@ func (eb *InMemoryEventBus) Publish(topic APIevent.EventType, event APIevent.Eve
 			default:
 				log.Printf("Event bus: channel for topic %s is full, skipping subscriber", topic)
 			}
+		}
+	}
+
+	return nil
+}
+
+// Release all the channels covering all the topics
+func (eb *InMemoryEventBus) Release() error {
+	eb.Lock()
+	defer eb.Unlock()
+	for _, channels := range eb.subscribers {
+		for _, channel := range channels {
+			close(channel)
 		}
 	}
 

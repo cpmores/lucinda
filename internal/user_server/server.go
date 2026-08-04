@@ -15,21 +15,27 @@ import (
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 )
 
-type Server struct {
+type Server interface {
+	Routes() http.Handler
+	Start(addr string) error
+	Shutdown(ctx context.Context) error
+}
+
+type HTTPServer struct {
 	wrapper *taskwrapper.TaskWrapper
 	streams map[APITask.TaskID]chan APITask.PlanResult
 	mu      sync.Mutex
 	httpSrv *http.Server
 }
 
-func New(eb eventbus.EventBus) *Server {
-	return &Server{
+func NewHTTPServer(eb eventbus.EventBus) Server {
+	return &HTTPServer{
 		wrapper: taskwrapper.New(eb),
 		streams: make(map[APITask.TaskID]chan APITask.PlanResult),
 	}
 }
 
-func (s *Server) Routes() http.Handler {
+func (s *HTTPServer) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/chat", s.handleChat)
 	mux.HandleFunc("/stream", s.handleStream)
@@ -37,7 +43,7 @@ func (s *Server) Routes() http.Handler {
 	return mux
 }
 
-func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) handleChat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
@@ -74,7 +80,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"tracking_id": string(id)})
 }
 
-func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) handleStream(w http.ResponseWriter, r *http.Request) {
 	planID := APITask.TaskID(r.URL.Query().Get("plan"))
 	if planID == "" {
 		http.Error(w, "plan parameter required", http.StatusBadRequest)
@@ -127,7 +133,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 }
 
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("ok"))
 }
 
@@ -136,7 +142,7 @@ func jsonEscape(s string) string {
 	return string(b)
 }
 
-func (s *Server) Start(addr string) error {
+func (s *HTTPServer) Start(addr string) error {
 	s.mu.Lock()
 	s.httpSrv = &http.Server{Addr: addr, Handler: s.Routes()}
 	srv := s.httpSrv
@@ -150,7 +156,7 @@ func (s *Server) Start(addr string) error {
 }
 
 // Shutdown gracefully stops the HTTP server without interrupting active connections.
-func (s *Server) Shutdown(ctx context.Context) error {
+func (s *HTTPServer) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
 	srv := s.httpSrv
 	s.mu.Unlock()

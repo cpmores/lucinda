@@ -10,7 +10,7 @@ import (
 	APIModule "github.com/cpmores/lucinda/api/v1/module"
 )
 
-// AvailableModule must be defined for every modules
+// AvailableModule must be implemented for every modules
 // And registered with ModuleManager
 type AvailableModule interface {
 	GetModuleType() APIModule.ModuleType

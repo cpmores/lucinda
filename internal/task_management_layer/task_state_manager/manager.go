@@ -22,33 +22,17 @@ var StateCheckSec int64 = 1
 type TaskStateManager interface {
 	RegisterWithManager(m modulemanager.ModuleManager) error
 	// ── Ingest ──────────────────────────────────────────────────────────
-	// Ingest takes a TaskPlan and initializes its state in the TaskStateManager.
+
 	Ingest(plan *APITask.TaskPlan) error
 
 	// ── Lifecycle ──────────────────────────────────────────────────────────
-	// Claim allows a peer to claim a ready task node for execution, setting a lease duration.
+
 	Claim(ctx context.Context, taskID APITask.TaskID, peerID string, leaseDuration int64) error
-
-	// Start marks a claimed task node as running, confirming that the peer has started execution.
 	Start(taskID APITask.TaskID) error
-
-	// Complete marks a running task node as done, indicating successful completion.
-	// output is the execution result. When the last node in a plan completes
-	// and plan.Notify is set, output is sent to that channel.
 	Complete(taskID APITask.TaskID, output string) error
-
-	// Failed marks a running node as failed, allowing for retries or error handling.
 	Failed(taskID APITask.TaskID) error
-
-	// Abandon allows a peer to give up a claim before starting, reverting the node
-	// to Ready so another peer can claim it.
 	Abandon(taskID APITask.TaskID) error
-
-	// Dispose marks every non-done node in the plan as disposed, cancelling
-	// the entire plan. Running/claimed nodes are abandoned; pending nodes skipped.
 	Dispose(planID APITask.TaskID) error
-
-	// Expired returns nodes whose claim lease has lapsed.
 	// NOTE: caller publishes them back to the TaskBoard.
 	Expired() []APITask.TaskNode
 
