@@ -28,6 +28,10 @@ type InMemoryEventBus struct {
 // NewInMemoryEventBus creates a new instance of InMemoryEventBus
 // returns a pointer to the newly created InMemoryEventBus
 func NewInMemoryEventBus(log *logger.Logger) *InMemoryEventBus {
+	if log == nil {
+		log = logger.Discard()
+	}
+	log.Info("created")
 	return &InMemoryEventBus{
 		log:         log,
 		subscribers: make(map[APIEvent.EventType][]chan APIEvent.Event),
@@ -124,3 +128,6 @@ func (eb *InMemoryEventBus) DependsOn() map[APIModule.ModuleType]string {
 func (eb *InMemoryEventBus) DependsEnable() error {
 	return nil
 }
+
+// Compile-time assertion that *InMemoryEventBus satisfies AvailableModule.
+var _ modulemanager.AvailableModule = (*InMemoryEventBus)(nil)

@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/lmittmann/tint"
+
 	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )
@@ -19,7 +21,7 @@ type Logger struct {
 
 type Options struct {
 	Level  string // debug | info | warn | error
-	Format string // text | json
+	Format string // text | json | colored (colored is for terminals only; files should use text/json)
 	Output string // stdout | stderr | file
 }
 
@@ -39,9 +41,38 @@ func New(opts Options) (*Logger, error) {
 	}
 
 	var h slog.Handler
-	if opts.Format == "json" {
+	switch opts.Format {
+	case "json":
 		h = slog.NewJSONHandler(w, &slog.HandlerOptions{Level: lv})
-	} else {
+	case "colored":
+		// Color only for terminal output; file output stays plain so
+		// ANSI escape codes never pollute log files.
+		noColor := opts.Output != "" && opts.Output != "stdout" && opts.Output != "stderr"
+		h = tint.NewTextHandler(w, &tint.Options{
+			Level:      lv,
+			TimeFormat: "15:04:05.000",
+			NoColor:    noColor,
+			// tint's defaults are bright colors (92/93/91) which some
+			// terminals remap; use basic ANSI colors for reliable rendering.
+			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+				if a.Key == slog.LevelKey && len(groups) == 0 {
+					if level, ok := a.Value.Any().(slog.Level); ok {
+						switch {
+						case level < slog.LevelInfo:
+							return tint.Attr(6, a) // cyan
+						case level < slog.LevelWarn:
+							return tint.Attr(2, a) // green
+						case level < slog.LevelError:
+							return tint.Attr(3, a) // yellow
+						default:
+							return tint.Attr(1, a) // red
+						}
+					}
+				}
+				return a
+			},
+		})
+	default: // "text"
 		h = slog.NewTextHandler(w, &slog.HandlerOptions{Level: lv})
 	}
 

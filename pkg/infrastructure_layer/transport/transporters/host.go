@@ -20,7 +20,7 @@ import (
 	"github.com/libp2p/go-msgio"
 	"github.com/multiformats/go-multiaddr"
 
-	"github.com/cpmores/lucinda/pkg/infrastructure_layer/logger"
+	logger "github.com/cpmores/lucinda/pkg/infrastructure_layer/logger"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 )
 
@@ -88,6 +88,7 @@ func NewLibp2pTransport(options Libp2pTransportOptions) (*Libp2pTransport, error
 		log = logger.Discard()
 	}
 
+	log.Info("created", "addrs", options.Addrs)
 	return &Libp2pTransport{
 		Options:    opts,
 		IsStarted:  false,

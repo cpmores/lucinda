@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	APIChat "github.com/cpmores/lucinda/api/v1/domain/chat"
 	APIProvider "github.com/cpmores/lucinda/api/v1/domain/provider"
@@ -16,7 +17,13 @@ func testConfig(url string) APIProvider.ProviderConfig {
 		ID:      "vllm-test",
 		Driver:  DriverName,
 		BaseURL: url,
-		Models:  []string{"qwen-2.5-gptq"},
+		Models: []APIProvider.ModelInfo{{
+			ID:            "qwen-2.5-gptq",
+			Labels:        map[string]string{"modality": "text"},
+			ParamsB:       7,
+			ContextTokens: 2048,
+			MinVRAM:       16 << 30,
+		}},
 		Timeout: 5,
 	}
 }
@@ -233,6 +240,42 @@ vllm:gpu_cache_usage_perc{model_name="qwen-2.5-gptq"} 0.42
 	}
 }
 
+// Status tracks in-flight inference: Busy while a request is running,
+// Free before and after.
+func TestStatusTracksInFlight(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release // hold the request so we can observe Busy
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":"x","model":"qwen","choices":[{"index":0,"message":{"role":"assistant","content":"hi"}}],"usage":{}}`))
+	}))
+	defer srv.Close()
+
+	p, _ := NewVLLMProvider(testConfig(srv.URL))
+	if p.Status() != APIProvider.Free {
+		t.Fatalf("expected Free before request, got %s", p.Status())
+	}
+
+	go p.Generate(context.Background(), &APIChat.ChatRequest{
+		Model: "qwen-2.5-gptq",
+		Messages: []APIChat.ChatMessage{{
+			Role:    "user",
+			Content: []APIChat.ContentPart{{Type: APIChat.ContentText, Text: "hi"}},
+		}},
+	})
+
+	time.Sleep(50 * time.Millisecond) // let the request start
+	if p.Status() != APIProvider.Busy {
+		t.Fatalf("expected Busy during request, got %s", p.Status())
+	}
+
+	close(release)
+	time.Sleep(50 * time.Millisecond) // let the request finish
+	if p.Status() != APIProvider.Free {
+		t.Fatalf("expected Free after request, got %s", p.Status())
+	}
+}
+
 func TestParseMetrics(t *testing.T) {
 	input := []byte(`vllm:gpu_cache_usage_perc{model_name="qwen"} 0.75` + "\n")
 	snap := parseMetrics(input)
@@ -329,7 +372,7 @@ func TestInfoMethods(t *testing.T) {
 	if p.GetID() != "vllm-test" {
 		t.Fatalf("GetID: expected vllm-test, got %s", p.GetID())
 	}
-	if len(p.GetModels()) != 1 || p.GetModels()[0] != "qwen-2.5-gptq" {
+	if len(p.GetModels()) != 1 || p.GetModels()[0].ID != "qwen-2.5-gptq" {
 		t.Fatalf("GetModels: expected [qwen-2.5-gptq], got %v", p.GetModels())
 	}
 	if got := p.GetCreatedAt(); got == 0 {

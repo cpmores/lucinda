@@ -8,8 +8,10 @@ import (
 	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
 	APIProvider "github.com/cpmores/lucinda/api/v1/domain/provider"
 	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
+	"github.com/cpmores/lucinda/pkg/infrastructure_layer/logger"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/provider/drivers"
+
 	"github.com/spf13/viper"
 )
 
@@ -20,8 +22,7 @@ type ProviderController interface {
 	Register(config APIProvider.ProviderConfig) error
 	Get(id string) (APIProvider.Provider, error)
 	List() []APIProvider.Provider
-	GetPlanProv() (APIProvider.Provider, error) // first available provider for planning
-	MaxContext() int                            // context window of the first available provider
+	GetProvByFilter(modelFilter APIProvider.ModelFilter) ([]APIProvider.ModelMatch, error)
 	Health(id string) (APIProvider.ProviderHealth, error)
 	HealthAll() []APIProvider.ProviderHealth
 	GPU() APIHardware.GPUSnapshot
@@ -29,14 +30,20 @@ type ProviderController interface {
 
 type controller struct {
 	providers map[string]APIProvider.Provider
+	log       *logger.Logger
 }
 
 // HACK: change controller to ProviderController
 
 // NewProviderController creates a new instance of the provider controller.
-func NewProviderController() *controller {
+func NewProviderController(log *logger.Logger) *controller {
+	if log == nil {
+		log = logger.Discard()
+	}
+	log.Info("created")
 	return &controller{
 		providers: make(map[string]APIProvider.Provider),
+		log:       log,
 	}
 }
 
@@ -60,7 +67,22 @@ func (c *controller) LoadProviders(config *viper.Viper) error {
 		}
 	}
 
+	c.log.Info("providers loaded", "count", len(c.providers))
+	c.warmupPing()
 	return nil
+}
+
+func (c *controller) warmupPing() {
+	for _, p := range c.List() {
+		if p.Health().Status != APIProvider.Free {
+			c.log.Warn("provider not free", "provider", p.GetID(), "status", p.Health().Status)
+		} else {
+			c.log.Info("provider free", "provider", p.GetID(), "status", p.Health().Status)
+			for _, model := range p.GetModels() {
+				c.log.Info("free model", "provider", p.GetID(), "model", model.ID)
+			}
+		}
+	}
 }
 
 // Register registers a provider with the given configuration.
@@ -75,6 +97,7 @@ func (c *controller) Register(config APIProvider.ProviderConfig) error {
 	}
 
 	c.providers[config.ID] = provider
+	c.log.Info("provider registered", "id", config.ID, "driver", config.Driver)
 	return nil
 }
 
@@ -88,6 +111,40 @@ func (c *controller) Get(id string) (APIProvider.Provider, error) {
 	return c.providers[id], nil
 }
 
+// GetProvByFilter returns, per provider, the models that satisfy the filter.
+// Only providers currently Free (Status()) are considered. Matches return
+// empty (nil error) when nothing qualifies — callers decide how to react.
+func (c *controller) GetProvByFilter(modelFilter APIProvider.ModelFilter) ([]APIProvider.ModelMatch, error) {
+	var matches []APIProvider.ModelMatch
+	for _, p := range c.List() {
+		if p.Status() != APIProvider.Free {
+			continue
+		}
+		var modelInfos []APIProvider.ModelInfo
+		termMap := map[int][]int{}
+		for _, m := range p.GetModels() {
+			var matchedTerms []int
+			for ti, term := range modelFilter.Required {
+				if term.Matches(m) {
+					matchedTerms = append(matchedTerms, ti)
+				}
+			}
+			if len(matchedTerms) > 0 {
+				modelInfos = append(modelInfos, m)
+				termMap[len(modelInfos)-1] = matchedTerms
+			}
+		}
+		if len(modelInfos) > 0 {
+			matches = append(matches, APIProvider.ModelMatch{
+				Provider:   p,
+				ModelInfos: modelInfos,
+				TermMap:    termMap,
+			})
+		}
+	}
+	return matches, nil
+}
+
 // List returns a list of all registered providers.
 func (c *controller) List() []APIProvider.Provider {
 	var list []APIProvider.Provider
@@ -96,25 +153,6 @@ func (c *controller) List() []APIProvider.Provider {
 	}
 
 	return list
-}
-
-// GetPlanProv returns the first available provider for planning tasks.
-func (c *controller) GetPlanProv() (APIProvider.Provider, error) {
-	list := c.List()
-	if len(list) == 0 {
-		return nil, fmt.Errorf("no provider available for planning")
-	}
-	return list[0], nil
-}
-
-// MaxContext returns the context window size of the first available provider,
-// or 2048 as a safe default if no provider is configured.
-func (c *controller) MaxContext() int {
-	list := c.List()
-	if len(list) == 0 {
-		return 2048
-	}
-	return list[0].MaxContextTokens()
 }
 
 // Health returns the health status of a provider by its ID.
@@ -142,7 +180,11 @@ func (c *controller) HealthAll() []APIProvider.ProviderHealth {
 func (c *controller) GPU() APIHardware.GPUSnapshot {
 	for _, p := range c.providers {
 		snap, err := p.GPU()
-		if err != nil || snap.UsedVRAM == 0 {
+		if err != nil {
+			c.log.Warn("gpu query failed", "provider", p.GetID(), "err", err)
+			continue
+		}
+		if snap.UsedVRAM == 0 {
 			continue
 		}
 		return snap

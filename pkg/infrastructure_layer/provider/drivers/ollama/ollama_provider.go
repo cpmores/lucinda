@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
@@ -61,9 +62,10 @@ type OllamaProvider struct {
 	client    *http.Client
 	baseURL   string
 	config    *APIProvider.ProviderConfig
-	models    []string
+	models    []APIProvider.ModelInfo
 	createdAt int64
 	eventID   int64
+	inFlight  atomic.Int64 // >0 while a model is running inference
 }
 
 func NewOllamaProvider(config APIProvider.ProviderConfig) (*OllamaProvider, error) {
@@ -94,9 +96,9 @@ func NewOllamaProvider(config APIProvider.ProviderConfig) (*OllamaProvider, erro
 
 // ── Info ──────────────────────────────────────────────────────────────
 
-func (p *OllamaProvider) GetID() string                     { return p.id }
-func (p *OllamaProvider) GetType() APIProvider.ProviderType { return APIProvider.Local }
-func (p *OllamaProvider) GetModels() []string               { return p.models }
+func (p *OllamaProvider) GetID() string                      { return p.id }
+func (p *OllamaProvider) GetType() APIProvider.ProviderType  { return APIProvider.Local }
+func (p *OllamaProvider) GetModels() []APIProvider.ModelInfo { return p.models }
 func (p *OllamaProvider) MaxContextTokens() int {
 	if p.config.MaxContextTokens > 0 {
 		return p.config.MaxContextTokens
@@ -132,6 +134,15 @@ func (p *OllamaProvider) Health() APIProvider.ProviderHealth {
 		Status:    APIProvider.Free,
 		Timestamp: time.Now().Unix(),
 	}
+}
+
+// Status reports availability from in-flight request count. Cheap,
+// in-memory: Busy while a model is running, Free otherwise.
+func (p *OllamaProvider) Status() APIProvider.ProviderStatus {
+	if p.inFlight.Load() > 0 {
+		return APIProvider.Busy
+	}
+	return APIProvider.Free
 }
 
 // ── GPU ───────────────────────────────────────────────────────────────
@@ -199,6 +210,9 @@ func (p *OllamaProvider) Warm(model string) error {
 // ── Generate ──────────────────────────────────────────────────────────
 
 func (p *OllamaProvider) Generate(ctx context.Context, req *APIChat.ChatRequest) (*APIChat.ChatResponse, error) {
+	p.inFlight.Add(1)
+	defer p.inFlight.Add(-1)
+
 	ollamaReq := p.buildOllamaRequest(req, false)
 	ollamaResp, err := p.doChat(ctx, ollamaReq)
 	if err != nil {
@@ -216,8 +230,10 @@ func (p *OllamaProvider) Stream(ctx context.Context, req *APIChat.ChatRequest) (
 		return nil, err
 	}
 
+	p.inFlight.Add(1)
 	ch := make(chan *APIChat.StreamChunk, 64)
 	go func() {
+		defer p.inFlight.Add(-1)
 		defer resp.Body.Close()
 		defer close(ch)
 

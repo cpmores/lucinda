@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	APIChat "github.com/cpmores/lucinda/api/v1/domain/chat"
@@ -96,9 +97,10 @@ type VLLMProvider struct {
 	client    *http.Client
 	baseURL   string
 	apiKey    string
-	models    []string
+	models    []APIProvider.ModelInfo
 	createdAt int64
 	eventID   int64
+	inFlight  atomic.Int64 // >0 while a model is running inference
 }
 
 func NewVLLMProvider(config APIProvider.ProviderConfig) (*VLLMProvider, error) {
@@ -130,9 +132,9 @@ func NewVLLMProvider(config APIProvider.ProviderConfig) (*VLLMProvider, error) {
 
 // ── Info ──────────────────────────────────────────────────────────────
 
-func (p *VLLMProvider) GetID() string                     { return p.id }
-func (p *VLLMProvider) GetType() APIProvider.ProviderType { return APIProvider.Cloud }
-func (p *VLLMProvider) GetModels() []string               { return p.models }
+func (p *VLLMProvider) GetID() string                      { return p.id }
+func (p *VLLMProvider) GetType() APIProvider.ProviderType  { return APIProvider.Cloud }
+func (p *VLLMProvider) GetModels() []APIProvider.ModelInfo { return p.models }
 func (p *VLLMProvider) MaxContextTokens() int {
 	if p.config.MaxContextTokens > 0 {
 		return p.config.MaxContextTokens
@@ -168,6 +170,15 @@ func (p *VLLMProvider) Health() APIProvider.ProviderHealth {
 	}
 
 	return p.errorHealth(fmt.Sprintf("status %d", resp.StatusCode))
+}
+
+// Status reports availability from in-flight request count. Cheap,
+// in-memory: Busy while a model is running, Free otherwise.
+func (p *VLLMProvider) Status() APIProvider.ProviderStatus {
+	if p.inFlight.Load() > 0 {
+		return APIProvider.Busy
+	}
+	return APIProvider.Free
 }
 
 // ── GPU ───────────────────────────────────────────────────────────────
@@ -238,6 +249,9 @@ func (p *VLLMProvider) Warm(model string) error {
 // ── Generate ──────────────────────────────────────────────────────────
 
 func (p *VLLMProvider) Generate(ctx context.Context, req *APIChat.ChatRequest) (*APIChat.ChatResponse, error) {
+	p.inFlight.Add(1)
+	defer p.inFlight.Add(-1)
+
 	cr := p.buildRequest(req, false)
 	response, err := p.doChat(ctx, &cr)
 	if err != nil {
@@ -255,12 +269,17 @@ func (p *VLLMProvider) Stream(ctx context.Context, req *APIChat.ChatRequest) (<-
 		return nil, err
 	}
 
+	p.inFlight.Add(1)
 	ch := make(chan *APIChat.StreamChunk, 64)
 	go func() {
+		defer p.inFlight.Add(-1)
 		defer resp.Body.Close()
 		defer close(ch)
 
 		scanner := bufio.NewScanner(resp.Body)
+		if scanner.Err() != nil {
+			return
+		}
 		for scanner.Scan() {
 			line := scanner.Text()
 			if !strings.HasPrefix(line, "data: ") {

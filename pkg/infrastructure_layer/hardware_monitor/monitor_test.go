@@ -17,14 +17,17 @@ import (
 func newTestMonitor(t *testing.T, repeatSec int64) (*monitor, eventbus.EventBus) {
 	t.Helper()
 	mm := modulemanager.NewModuleManager()
+
 	eb := eventbus.NewInMemoryEventBus(logger.Discard())
 	if err := eb.RegisterWithManager(mm); err != nil {
 		t.Fatalf("eventbus register: %v", err)
 	}
+
 	m := NewHardwareMonitor(repeatSec, logger.Discard())
 	if err := m.RegisterWithManager(mm); err != nil {
 		t.Fatalf("monitor register: %v", err)
 	}
+
 	if err := m.DependsEnable(); err != nil {
 		t.Fatalf("DependsEnable: %v", err)
 	}
@@ -261,7 +264,7 @@ func TestMonitorRegisterDependsOnEventBus(t *testing.T) {
 	}
 
 	if err := mm.VerifyInit(); err != nil {
-		t.Fatalf("VerifyInit should pass when eventbus is registered: %v", err)
+		t.Fatalf("VerifyInit should pass when deps registered: %v", err)
 	}
 
 	if err := mm.EnableDeps(); err != nil {

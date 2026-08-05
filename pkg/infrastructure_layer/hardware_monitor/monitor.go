@@ -39,6 +39,10 @@ type monitor struct {
 
 // NewHardwareMonitor creates a new instance of the hardware monitor.
 func NewHardwareMonitor(repeatSec int64, log *logger.Logger) *monitor {
+	if log == nil {
+		log = logger.Discard()
+	}
+	log.Info("created", "interval_sec", repeatSec)
 	return &monitor{
 		log:       log,
 		IsStarted: false,

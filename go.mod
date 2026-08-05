@@ -5,6 +5,7 @@ go 1.26.2
 require (
 	github.com/libp2p/go-libp2p v0.48.0
 	github.com/libp2p/go-msgio v0.3.0
+	github.com/lmittmann/tint v1.2.0
 	github.com/multiformats/go-multiaddr v0.16.0
 	github.com/shirou/gopsutil/v4 v4.26.5
 	github.com/spf13/viper v1.21.0

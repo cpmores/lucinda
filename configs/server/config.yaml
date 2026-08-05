@@ -2,13 +2,19 @@
 
 provider_controller:
   providers:
-    - id: "vllm-qwen"
+    - id: "vllm"
       driver: "vllm"
       host: "localhost"
       port: 8000
       max_context_tokens: 2048
       models:
-        - "qwen-2.5-gptq"
+        - id: "qwen-2.5-gptq"
+          labels:
+            modality: "text"
+            employer: "TaskPlanner,TaskCommander,TaskExecutor"
+          params_b: 7
+          context_tokens: 2048
+          min_vram: 17179869184   # 16 GiB
 
 transport:
   type: "libp2p"

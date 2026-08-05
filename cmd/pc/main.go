@@ -8,20 +8,12 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/spf13/viper"
 
-	taskpostman "github.com/cpmores/lucinda/internal/task_management_layer/task_postman"
-	taskstatemanager "github.com/cpmores/lucinda/internal/task_management_layer/task_state_manager"
-	tasktracer "github.com/cpmores/lucinda/internal/task_management_layer/task_tracer"
-	taskboard "github.com/cpmores/lucinda/internal/task_workflow_layer/task_board"
-	taskexecutor "github.com/cpmores/lucinda/internal/task_workflow_layer/task_executor"
-	taskplanner "github.com/cpmores/lucinda/internal/task_workflow_layer/task_planner"
-	taskreducer "github.com/cpmores/lucinda/internal/task_workflow_layer/task_reducer"
-	userserver "github.com/cpmores/lucinda/internal/user_server"
 	eventbus "github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 	hardwaremonitor "github.com/cpmores/lucinda/pkg/infrastructure_layer/hardware_monitor"
+	logger "github.com/cpmores/lucinda/pkg/infrastructure_layer/logger"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 	provider "github.com/cpmores/lucinda/pkg/infrastructure_layer/provider"
 	transport "github.com/cpmores/lucinda/pkg/infrastructure_layer/transport/transporters"
@@ -63,92 +55,60 @@ func main() {
 	}
 
 	// ── Phase 1: Infrastructure ─────────────────────────────────────────
-	eb := eventbus.NewInMemoryEventBus()
+	rootLogger, err := logger.New(logger.Options{
+		Level:  "info",
+		Format: "colored",
+		Output: "stdout",
+	})
+	if err != nil {
+		log.Fatalf("logger: %v", err)
+	}
+
 	mm := modulemanager.NewModuleManager()
+	eb := eventbus.NewInMemoryEventBus(rootLogger.Child("Level-1-Eventbus"))
 
 	tp, err := transport.NewLibp2pTransport(transport.Libp2pTransportOptions{
 		Addrs:      v.GetStringSlice("transport.libp2p.addrs"),
 		OutsLength: int64(v.GetInt("transport.libp2p.outs_length")),
 		InsLength:  int64(v.GetInt("transport.libp2p.ins_length")),
+		Logger:     rootLogger.Child("Level-1-Transport"),
 	})
 	if err != nil {
 		log.Fatalf("transport: %v", err)
 	}
 
-	hm := hardwaremonitor.NewHardwareMonitor(eb, int64(v.GetInt("hardware_monitor.interval_sec")))
-	pc := provider.NewProviderController()
+	hm := hardwaremonitor.NewHardwareMonitor(1, rootLogger.Child("Level-1-HardwareMonitor"))
+	pc := provider.NewProviderController(rootLogger.Child("Level-1-ProviderController"))
 
 	if err := pc.LoadProviders(v); err != nil {
 		log.Fatalf("load providers: %v", err)
 	}
 
-	// ── Phase 2: Task Management ────────────────────────────────────────
-	pm := taskpostman.NewTaskPostman(eb)
-	tt := tasktracer.NewTaskTracer()
-	sm := taskstatemanager.NewTaskStateManager(eb)
-
+	rootLogger.RegisterWithManager(mm)
+	eb.RegisterWithManager(mm)
 	tp.RegisterWithManager(mm)
 	hm.RegisterWithManager(mm)
 	pc.RegisterWithManager(mm)
-	pm.RegisterWithManager(mm)
-	tt.RegisterWithManager(mm)
-	sm.RegisterWithManager(mm)
 
-	tb := taskboard.NewTaskBoard(mm, sm)
-	te := taskexecutor.NewTaskExecutor(mm, sm)
-	planner := taskplanner.NewTaskPlanner(mm)
-	reducer := taskreducer.NewTaskReducer(mm)
-
-	tb.RegisterWithManager(mm)
-	te.RegisterWithManager(mm)
-	planner.RegisterWithManager(mm)
-	reducer.RegisterWithManager(mm)
+	// ── Phase 2: Task Management ────────────────────────────────────────
 
 	// ── Start services ───────────────────────────────────────────────────
+
+	if err := mm.VerifyInit(); err != nil {
+		log.Fatalf("module manager: %v", err)
+	}
+	if err := mm.EnableDeps(); err != nil {
+		log.Fatalf("module manager: %v", err)
+	}
+
 	if err := tp.Start(ctx); err != nil {
 		log.Fatalf("transport: %v", err)
 	}
 	if err := hm.Start(ctx); err != nil {
 		log.Fatalf("monitor: %v", err)
 	}
-	if err := tb.Start(ctx); err != nil {
-		log.Fatalf("taskboard: %v", err)
-	}
-	if err := te.Start(ctx); err != nil {
-		log.Fatalf("executor: %v", err)
-	}
-	if err := planner.Start(ctx); err != nil {
-		log.Fatalf("planner: %v", err)
-	}
-	if err := reducer.Start(ctx); err != nil {
-		log.Fatalf("reducer: %v", err)
-	}
-
 	// ── HTTP Server ─────────────────────────────────────────────────────
-	httpPort := fmt.Sprintf(":%d", v.GetInt("http.port"))
-	srv := userserver.NewHTTPServer(eb)
-	go func() {
-		if err := srv.Start(httpPort); err != nil {
-			log.Printf("server: %v", err)
-		}
-	}()
-
-	log.Printf("lucinda: all services started on %s", httpPort)
-
 	<-ctx.Done()
-	log.Println("lucinda: shutting down")
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("server shutdown: %v", err)
-	}
-
-	te.Stop()
-	reducer.Stop()
-	planner.Stop()
-	tb.Stop()
 	hm.Stop()
 	tp.Stop()
-	pm.Stop()
 }

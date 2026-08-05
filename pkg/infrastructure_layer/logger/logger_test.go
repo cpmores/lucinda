@@ -2,6 +2,7 @@ package logger
 
 import (
 	"bytes"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -85,4 +86,43 @@ func TestNewInvalidLevelFallsBack(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	l.Info("should not panic")
+}
+
+// The colored format emits ANSI escapes for terminal (stdout) output.
+func TestNewColoredTerminalHasAnsi(t *testing.T) {
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+
+	l, err := New(Options{Level: "info", Format: "colored", Output: "stdout"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	l.Info("hello")
+
+	w.Close()
+	data, _ := io.ReadAll(r)
+	if !bytes.Contains(data, []byte("\x1b[")) {
+		t.Fatalf("expected ANSI escape in terminal colored output, got: %q", data)
+	}
+}
+
+// The colored format stays plain when writing to a file, so ANSI escape
+// codes never pollute log files.
+func TestNewColoredFileIsPlain(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "colored.log")
+	l, err := New(Options{Level: "info", Format: "colored", Output: path})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	l.Info("hello")
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if bytes.Contains(data, []byte("\x1b[")) {
+		t.Fatalf("expected no ANSI escape in file output, got: %q", data)
+	}
 }
