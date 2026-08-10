@@ -6,11 +6,13 @@
 #   scripts/start_lucinda.sh stop       # stop the running server (by pid file + port)
 #   BG=0 scripts/start_lucinda.sh       # foreground (Ctrl-C stops the server)
 #
-# Env overrides: PORT (default 9090), BIN (default /tmp/lucinda-server).
+# Env overrides: PORT (default 9090), BIN (default /tmp/lucinda-server),
+# CONFIG (config manifest path, optional).
 set -e
 
 PORT="${PORT:-9090}"
 BIN="${BIN:-/tmp/lucinda-server}"
+CONFIG="${CONFIG:-}"
 URL="http://localhost:$PORT"
 BG="${BG:-1}"
 
@@ -37,15 +39,20 @@ sleep 1
 echo "== Building Lucinda =="
 go build -o "$BIN" ./cmd/pc/
 
+ARGS=()
+if [ -n "$CONFIG" ]; then
+    ARGS+=("-config" "$CONFIG")
+fi
+
 if [ "$BG" = "1" ]; then
-    "$BIN"
-    #"$BIN" > /tmp/lucinda.log 2>&1 &
+    # "$BIN" "${ARGS[@]}"
+    "$BIN" "${ARGS[@]}" >/tmp/lucinda.log 2>&1 &
     SRV=$!
     echo "$SRV" >/tmp/lucinda.pid
-    # echo "== Lucinda started (pid $SRV), log at /tmp/lucinda.log =="
-    echo "== Lucinda started (pid $SRV) =="
+    echo "== Lucinda started (pid $SRV), log at /tmp/lucinda.log =="
+    echo "== Lucinda started (pid $SRV)${CONFIG:+, config=$CONFIG} =="
 else
-    exec "$BIN"
+    exec "$BIN" "${ARGS[@]}"
 fi
 
 # # Wait for the health endpoint.

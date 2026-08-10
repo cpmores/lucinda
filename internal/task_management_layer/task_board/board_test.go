@@ -21,9 +21,10 @@ import (
 )
 
 type bn struct {
-	eb *eventbus.InMemoryEventBus
-	tp *testutil.MockTransport
-	pm taskpostman.TaskPostman
+	eb   *eventbus.InMemoryEventBus
+	tp   *testutil.MockTransport
+	pm   taskpostman.TaskPostman
+	prov *testutil.MockProvider
 }
 
 // newBoardNode wires one mesh node: eventbus + mock transport + a provider
@@ -37,9 +38,10 @@ func newBoardNode(t *testing.T, id, model string) *bn {
 	mm := modulemanager.NewModuleManager()
 	eb := eventbus.NewInMemoryEventBus(log.Child(id + "-eb"))
 	tp := testutil.NewMockTransport(id)
-	pc := testutil.NewMockProviderController(testutil.NewMockProvider(id+"-prov", []APIProvider.ModelInfo{
+	prov := testutil.NewMockProvider(id+"-prov", []APIProvider.ModelInfo{
 		{ID: model, Labels: map[string]string{"modality": "text"}, ContextTokens: 2048},
-	}))
+	})
+	pc := testutil.NewMockProviderController(prov)
 
 	eb.RegisterWithManager(mm)
 	tp.RegisterWithManager(mm)
@@ -73,7 +75,7 @@ func newBoardNode(t *testing.T, id, model string) *bn {
 	start("board", board.Start)
 	start("executor", ex.Start)
 
-	return &bn{eb: eb, tp: tp, pm: pm}
+	return &bn{eb: eb, tp: tp, pm: pm, prov: prov}
 }
 
 // TestPublishLeaseAcrossNodes exercises the full protocol: the employer
@@ -132,5 +134,56 @@ gotDone:
 	}
 	if !gotAssign {
 		t.Fatal("employer never sent TaskAssign to the worker")
+	}
+}
+
+// TestReleasedTaskReassigned verifies the retry flow: node A's executor fails
+// once (Released), the board reassigns the task to the secondary candidate
+// node B, and B's executor completes it (Done).
+func TestReleasedTaskReassigned(t *testing.T) {
+	a := newBoardNode(t, "node-A", "m1")
+	b := newBoardNode(t, "node-B", "m1")
+	a.tp.Peer = b.tp
+	b.tp.Peer = a.tp
+	a.prov.GenerateFailures = 1 // A's first attempt fails → Released
+
+	traced := a.eb.Subscribe(APIEvent.TaskTraced, 16)
+
+	task := &APITask.Task{
+		Meta: APITask.TaskMeta{ID: "t-rel", Owner: "node-A"},
+		Spec: APITask.TaskSpec{Prompt: "do work", Model: "m1", BudgetTokens: 100},
+		TaskPlan: &APITask.TaskPlan{ID: "plan-rel", Owner: "node-A"},
+	}
+	_ = a.eb.Publish(APIEvent.TaskReady, APIEvent.NewEvent(APIEvent.TaskReady, task))
+
+	var sawReleased, sawDone bool
+	deadline := time.After(5 * time.Second)
+	for !(sawReleased && sawDone) {
+		select {
+		case ev := <-traced:
+			msg, ok := ev.Data.(APITaskmsg.TaskTracedMsg)
+			if !ok {
+				continue
+			}
+			switch msg.State {
+			case APITask.StateReleased:
+				sawReleased = true
+			case APITask.StateDone:
+				sawDone = true
+			}
+		case <-deadline:
+			t.Fatalf("timed out (released=%v done=%v)", sawReleased, sawDone)
+		}
+	}
+
+	// The reassign must have gone to node-B over the transport.
+	gotReassign := false
+	for _, m := range a.tp.Sent {
+		if m.Topic == string(APIEvent.TaskAssign) && string(m.To) == "node-B" {
+			gotReassign = true
+		}
+	}
+	if !gotReassign {
+		t.Fatal("task was not reassigned to node-B")
 	}
 }

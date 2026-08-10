@@ -127,6 +127,7 @@ const (
 	StateClaimed  NodeState = "claimed"  // leased by a peer
 	StateRunning  NodeState = "running"  // peer confirmed, executing
 	StateDone     NodeState = "done"     // completed successfully
-	StateFailed   NodeState = "failed"   // execution failed, retryable
+	StateFailed   NodeState = "failed"   // final failure — the board gave up; the commander fails the plan
+	StateReleased NodeState = "released" // the executor failed and released the task back to the board for reassignment
 	StateDisposed NodeState = "disposed" // cancelled by owner, will never run
 )

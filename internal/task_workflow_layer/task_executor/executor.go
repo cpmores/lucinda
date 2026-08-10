@@ -9,21 +9,27 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	APIChat "github.com/cpmores/lucinda/api/v1/domain/chat"
+	APIProvider "github.com/cpmores/lucinda/api/v1/domain/provider"
 	APISteam "github.com/cpmores/lucinda/api/v1/domain/stream"
 	APITask "github.com/cpmores/lucinda/api/v1/domain/task"
-	APIProvider "github.com/cpmores/lucinda/api/v1/domain/provider"
 	APIEvent "github.com/cpmores/lucinda/api/v1/messaging/event"
-	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 	APITaskmsg "github.com/cpmores/lucinda/api/v1/messaging/taskmsg"
-	"github.com/cpmores/lucinda/internal/task_management_layer/stream_router"
-	"github.com/cpmores/lucinda/internal/task_management_layer/task_tracer"
+	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
+	streamrouter "github.com/cpmores/lucinda/internal/task_management_layer/stream_router"
+	tasktracer "github.com/cpmores/lucinda/internal/task_management_layer/task_tracer"
 	"github.com/cpmores/lucinda/internal/task_workflow_layer/eventx"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/logger"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 	providerctrl "github.com/cpmores/lucinda/pkg/infrastructure_layer/provider"
+)
+
+const (
+	BusyProviderRetries    = 3
+	BusyProviderRetryDelay = 500 // milliseconds
 )
 
 // TaskExecutor is the interface for the executor module.
@@ -92,6 +98,12 @@ func (e *executor) execute(ctx context.Context, msg *APITaskmsg.TaskAssignMsg) e
 	})
 
 	prov, err := pickProvider(e.pc, msg.Spec)
+	busyProviderRetry := 1
+	for err != nil && busyProviderRetry < BusyProviderRetries {
+		time.Sleep(BusyProviderRetryDelay * time.Millisecond)
+		prov, err = pickProvider(e.pc, msg.Spec)
+		busyProviderRetry = busyProviderRetry + 1
+	}
 	if err != nil {
 		e.fail(msg, err)
 		return err
@@ -169,11 +181,13 @@ func (e *executor) run(ctx context.Context, msg *APITaskmsg.TaskAssignMsg, prov 
 	}
 }
 
-// fail records the failure on the tracer; the commander fails the plan from
-// the resulting TaskTraced.
+// fail releases the task back to the board on failure: it emits
+// TaskTraced{Released}, which the board answers by reassigning to another
+// candidate (or, when exhausted, failing the plan). The commander does not
+// treat Released as fatal.
 func (e *executor) fail(msg *APITaskmsg.TaskAssignMsg, err error) {
-	e.log.Error("task failed", "task", msg.TaskID, "err", err)
-	_ = e.tt.Update(msg.TaskID, APITask.StateFailed)
+	e.log.Error("task failed, releasing back", "task", msg.TaskID, "err", err)
+	_ = e.tt.Update(msg.TaskID, APITask.StateReleased)
 }
 
 // pickProvider prefers the spec's explicit model; otherwise it selects a free
@@ -181,14 +195,19 @@ func (e *executor) fail(msg *APITaskmsg.TaskAssignMsg, err error) {
 // none qualify.
 func pickProvider(pc providerctrl.ProviderController, spec APITask.TaskSpec) (APIProvider.Provider, error) {
 	if spec.Model != "" {
+		// Only Free providers can serve — a Busy/Error provider is skipped so
+		// the two selection paths stay consistent.
 		for _, p := range pc.List() {
+			if p.Status() != APIProvider.Free {
+				continue
+			}
 			for _, m := range p.GetModels() {
 				if m.ID == spec.Model {
 					return p, nil
 				}
 			}
 		}
-		return nil, fmt.Errorf("no provider serving model %s", spec.Model)
+		return nil, fmt.Errorf("no free provider serving model %s", spec.Model)
 	}
 
 	matches, err := pc.GetProvByFilter(APIProvider.ModelFilter{
@@ -220,16 +239,20 @@ func textFromResponse(resp *APIChat.ChatResponse) string {
 // ── AvailableModule Interface ──────────────────────────────────────────
 
 func (e *executor) GetModuleType() APIModule.ModuleType { return APIModule.TaskExecutor }
+
 func (e *executor) GetModuleID() APIModule.ModuleID {
 	return APIModule.NewModuleID(e.GetModuleType(), "default")
 }
+
 func (e *executor) CheckHealth() APIModule.ModuleHealth {
 	return APIModule.NewModuleHealth(e.GetModuleID(), e.GetModuleType(), APIModule.Running)
 }
+
 func (e *executor) RegisterWithManager(m modulemanager.ModuleManager) error {
 	e.mm = m
 	return m.Register(e)
 }
+
 func (e *executor) DependsOn() map[APIModule.ModuleType]string {
 	return map[APIModule.ModuleType]string{
 		APIModule.EventBus:           "default",
@@ -238,6 +261,7 @@ func (e *executor) DependsOn() map[APIModule.ModuleType]string {
 		APIModule.StreamRouter:       "default",
 	}
 }
+
 func (e *executor) DependsEnable() error {
 	for depType, name := range e.DependsOn() {
 		id := APIModule.NewModuleID(depType, name)

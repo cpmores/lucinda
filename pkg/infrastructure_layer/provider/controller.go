@@ -3,7 +3,9 @@
 package provider
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	APIHardware "github.com/cpmores/lucinda/api/v1/domain/hardware"
 	APIProvider "github.com/cpmores/lucinda/api/v1/domain/provider"
@@ -11,14 +13,14 @@ import (
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/logger"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
 	"github.com/cpmores/lucinda/pkg/infrastructure_layer/provider/drivers"
-
-	"github.com/spf13/viper"
 )
 
 // ── ProviderController ──────────────────────────────────────────────────────────
 
+const PingInterval = 30 * time.Second
+
 type ProviderController interface {
-	LoadProviders(config *viper.Viper) error
+	LoadProviders(ctx context.Context, configs []APIProvider.ProviderConfig) error
 	Register(config APIProvider.ProviderConfig) error
 	Get(id string) (APIProvider.Provider, error)
 	List() []APIProvider.Provider
@@ -50,29 +52,33 @@ func NewProviderController(log *logger.Logger) *controller {
 // ── Controller Implementation ──────────────────────────────────────────────────────────
 // ── Section ──────────────────────────────────────────────────────────
 
-// LoadProviders loads providers from the configuration file and registers them.
-// return error if any provider fails to register,
-// with the index of the failed provider in the configuration file for easier debugging.
-func (c *controller) LoadProviders(config *viper.Viper) error {
-	var configs []APIProvider.ProviderConfig
-
-	if err := config.UnmarshalKey("provider_controller.providers", &configs); err != nil {
-		return fmt.Errorf("failed to unmarshal provider configs: %w", err)
-	}
-
+// LoadProviders registers a list of provider configs. The index of a failed
+// provider is included in the error for easier debugging.
+func (c *controller) LoadProviders(ctx context.Context, configs []APIProvider.ProviderConfig) error {
 	for i, config := range configs {
-		err := c.Register(config)
-		if err != nil {
+		if err := c.Register(config); err != nil {
 			return fmt.Errorf("failed to register provider INDEX %d: %w", i, err)
 		}
 	}
 
 	c.log.Info("providers loaded", "count", len(c.providers))
-	c.warmupPing()
+
+	tick := time.NewTicker(PingInterval)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				c.warmupPing()
+			}
+		}
+	}()
 	return nil
 }
 
 func (c *controller) warmupPing() {
+	// flag true means needed register,
 	for _, p := range c.List() {
 		if p.Health().Status != APIProvider.Free {
 			c.log.Warn("provider not free", "provider", p.GetID(), "status", p.Health().Status)

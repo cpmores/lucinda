@@ -120,6 +120,7 @@ Employer                      TaskBoard (mesh)                  Worker
 - **Capability bidding**: a node with no matching model does not bid; the best-qualified bid (VRAM, model, tools, labels) wins. The matching **strategy lives in the TaskBoard** (`matchCV`) so it can evolve without touching the API contract.
 - **Per-kind bid windows**: `reason` tasks use a short window (quick internal LLM calls), `execute`/`synthesize` use the normal one.
 - **Self-bid fast path**: a lone node assigns itself after one window.
+- **Two-layer failure handling**: a failed task emits `TaskTraced{Released}` (retryable) — the board reassigns it to the next best candidate (up to 3) instead of failing the plan; only when candidates are exhausted does the board emit the terminal `TaskTraced{Failed}`, which the commander turns into `PlanError`. The executor also retries a busy provider with backoff before releasing.
 - **Retry**: if no bid qualifies, the ad is re-issued up to 3 times; giving up fails the plan instead of hanging.
 - **Cross-node routing**: results flow back through the `TaskTraced` signal, which the postman unicasts to the plan owner.
 
@@ -232,6 +233,9 @@ bash scripts/test_smoke_simple.sh --start
 
 # Complex: ReAct loop → status/step_result/stream/done
 bash scripts/test_smoke.sh --start
+
+# Failure flow: Released → board give-up → done(error)
+bash scripts/test_release.sh
 ```
 
 Manual test:
@@ -297,7 +301,7 @@ lucinda/
 │   ├── main.go                   #   Bootstrap + graceful shutdown
 │   └── plugins.go                #   Provider driver imports
 ├── configs/server/               # YAML configuration
-├── scripts/                      # start_lucinda.sh, test_smoke.sh, test_smoke_simple.sh
+├── scripts/                      # start_lucinda.sh, test_smoke.sh, test_smoke_simple.sh, test_release.sh
 ├── docs/                         # Documentation, proposals, diagrams
 └── openspec/                     # Change proposals + capability specs
 ```
@@ -322,6 +326,9 @@ go test -v ./internal/task_workflow_layer/task_planner/
 # Smoke (needs a running server or --start)
 bash scripts/test_smoke_simple.sh --start
 bash scripts/test_smoke.sh --start
+
+# Failure flow (starts its own server with a dead provider)
+bash scripts/test_release.sh
 ```
 
 ---

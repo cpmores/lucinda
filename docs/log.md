@@ -1,6 +1,35 @@
 # Development Log
 
-## Current Branch: `fix/sse-goroutine-leak`
+## Current Branch: `feat/task-commander`
+
+### 2026-08-10 — failure retry, structured config, scripts, docs
+
+**Done:**
+- [x] Two-layer failure handling (`StateReleased` vs `StateFailed`)
+  - `api/v1/domain/task/task_plan.go`: `StateReleased = "released"`
+  - `task_executor/executor.go`: `fail()` emits `Released` (retryable) instead of `Failed`; the commander does not treat it as fatal
+  - `task_board/board.go`: `onTaskTerminated` reassigns a released task to the next candidate (`bestBids` top-3); when candidates are exhausted it emits the terminal `Failed`, which the commander turns into `PlanError`
+  - `task_commander/commander.go`: `onTraced` ignores `Released`, fails the plan on `Failed`
+- [x] Busy-provider retry: `pickProvider` retries 3× with 500 ms backoff; only `Free` providers are accepted (explicit-model path aligned with `GetProvByFilter`)
+- [x] Structured K8s-style config (change `structured-config`, archived)
+  - `internal/config`: typed `NodeConfig` manifest (`apiVersion`/`kind`/`metadata`/`spec`), `Load`/`Path`, validation + defaults
+  - `ProviderController.LoadProviders` takes typed configs (viper removed)
+  - `-config` / `LUCINDA_CONFIG` override; `configs/server/config-nodeB.yaml` for a second node
+- [x] Test scripts: `start_lucinda.sh`, `test_smoke.sh`, `test_smoke_simple.sh`, `test_release.sh`
+- [x] Go test `TestReleasedTaskReassigned`: node A fails (Released) → board reassigns to B → B succeeds
+- [x] READMEs updated (root, task_management_layer, task_workflow_layer)
+
+**Pending:**
+- [ ] Real two-node mesh smoke (config basis exists: `config-nodeB.yaml` + `CONFIG=` override)
+- [ ] Multi-transaction answer LLM merge (currently concatenated)
+- [ ] `feat/context-manager` — session state + KV-cache affinity
+- [ ] Toolbox / MCP / image-video provider drivers
+
+---
+
+### Historical — `fix/sse-goroutine-leak` (older architecture, superseded)
+
+The entries below describe the previous StateManager/reducer architecture; the current codebase uses semantic transactions + multi-Commander orchestration.
 
 ### Done on this branch
 

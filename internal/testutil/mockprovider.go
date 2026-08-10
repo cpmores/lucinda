@@ -11,7 +11,6 @@ import (
 	APIProvider "github.com/cpmores/lucinda/api/v1/domain/provider"
 	APIModule "github.com/cpmores/lucinda/api/v1/registry/module"
 	modulemanager "github.com/cpmores/lucinda/pkg/infrastructure_layer/module_manager"
-	"github.com/spf13/viper"
 )
 
 // MockProvider is an in-memory Provider fake. Planning prompts (containing
@@ -28,6 +27,10 @@ type MockProvider struct {
 	ReActOut []string
 	// ErrPrompt, when non-empty, makes Generate fail for prompts containing it.
 	ErrPrompt string
+	// GenerateFailures is the number of Generate calls that should fail with a
+	// transient error (each call decrements). Lets a test force the executor to
+	// release a task so the board reassigns it.
+	GenerateFailures int
 	// StreamOut, when non-empty, is the sequence of deltas returned by Stream
 	// (a Done chunk is appended). Defaults to ["hello ", "world"].
 	StreamOut []string
@@ -94,6 +97,10 @@ func (p *MockProvider) Generate(_ context.Context, req *APIChat.ChatRequest) (*A
 	if len(req.Messages) > 0 && len(req.Messages[0].Content) > 0 {
 		prompt = req.Messages[0].Content[0].Text
 	}
+	if p.GenerateFailures > 0 {
+		p.GenerateFailures--
+		return nil, fmt.Errorf("transient failure")
+	}
 	if p.ErrPrompt != "" && strings.Contains(prompt, p.ErrPrompt) {
 		return nil, fmt.Errorf("mock provider error on %q", p.ErrPrompt)
 	}
@@ -156,7 +163,7 @@ func NewMockProviderController(providers ...APIProvider.Provider) *MockProviderC
 	return &MockProviderController{Providers: providers}
 }
 
-func (c *MockProviderController) LoadProviders(*viper.Viper) error { return nil }
+func (c *MockProviderController) LoadProviders(context.Context, []APIProvider.ProviderConfig) error { return nil }
 func (c *MockProviderController) Register(APIProvider.ProviderConfig) error {
 	return nil
 }

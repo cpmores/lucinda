@@ -246,16 +246,16 @@ type ProviderHealth struct {
 
 // ProviderConfig represents the configuration for registering a provider,
 type ProviderConfig struct {
-	ID               string            `mapstructure:"id"`
-	Type             ProviderType      `mapstructure:"type"`
-	Driver           string            `mapstructure:"driver"` // "ollama", "openai", "anthropic"
-	Host             string            `mapstructure:"host"`
-	Port             int               `mapstructure:"port"`
-	BaseURL          string            `mapstructure:"base_url"` // optional, overrides host:port
-	APIKey           string            `mapstructure:"api_key"`  // empty for ollama
-	Headers          map[string]string `mapstructure:"headers"`  // extra headers
-	Models           []ModelInfo       `mapstructure:"models"`
-	TotalVRAM        int64             `mapstructure:"total_vram"`         // physical GPU VRAM in bytes
-	MaxContextTokens int               `mapstructure:"max_context_tokens"` // model context window (default 2048)
-	Timeout          int               `mapstructure:"timeout"`            // seconds between polls/retries
+	ID               string            `yaml:"id" mapstructure:"id"`
+	Type             ProviderType      `yaml:"type,omitempty" mapstructure:"type"`
+	Driver           string            `yaml:"driver,omitempty" mapstructure:"driver"` // "ollama", "openai", "anthropic"
+	Host             string            `yaml:"host,omitempty" mapstructure:"host"`
+	Port             int               `yaml:"port,omitempty" mapstructure:"port"`
+	BaseURL          string            `yaml:"base_url,omitempty" mapstructure:"base_url"` // optional, overrides host:port
+	APIKey           string            `yaml:"api_key,omitempty" mapstructure:"api_key"`   // empty for ollama
+	Headers          map[string]string `yaml:"headers,omitempty" mapstructure:"headers"`   // extra headers
+	Models           []ModelInfo       `yaml:"models,omitempty" mapstructure:"models"`
+	TotalVRAM        int64             `yaml:"total_vram,omitempty" mapstructure:"total_vram"`         // physical GPU VRAM in bytes
+	MaxContextTokens int               `yaml:"max_context_tokens,omitempty" mapstructure:"max_context_tokens"` // model context window (default 2048)
+	Timeout          int               `yaml:"timeout,omitempty" mapstructure:"timeout"`                     // seconds between polls/retries
 }

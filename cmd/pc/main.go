@@ -2,14 +2,12 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
-
-	"github.com/spf13/viper"
 
 	eventbus "github.com/cpmores/lucinda/pkg/infrastructure_layer/eventbus"
 	hardwaremonitor "github.com/cpmores/lucinda/pkg/infrastructure_layer/hardware_monitor"
@@ -18,50 +16,30 @@ import (
 	provider "github.com/cpmores/lucinda/pkg/infrastructure_layer/provider"
 	transport "github.com/cpmores/lucinda/pkg/infrastructure_layer/transport/transporters"
 
+	taskpostman "github.com/cpmores/lucinda/internal/task_management_layer/postman"
+	streamrouter "github.com/cpmores/lucinda/internal/task_management_layer/stream_router"
+	taskboard "github.com/cpmores/lucinda/internal/task_management_layer/task_board"
+	tasktracer "github.com/cpmores/lucinda/internal/task_management_layer/task_tracer"
+	telemetrybridge "github.com/cpmores/lucinda/internal/task_management_layer/telemetry_bridge"
 	taskcommander "github.com/cpmores/lucinda/internal/task_workflow_layer/task_commander"
 	taskexecutor "github.com/cpmores/lucinda/internal/task_workflow_layer/task_executor"
 	taskmonitor "github.com/cpmores/lucinda/internal/task_workflow_layer/task_monitor"
 	taskplanner "github.com/cpmores/lucinda/internal/task_workflow_layer/task_planner"
-	telemetrybridge "github.com/cpmores/lucinda/internal/task_management_layer/telemetry_bridge"
-	streamrouter "github.com/cpmores/lucinda/internal/task_management_layer/stream_router"
-	taskpostman "github.com/cpmores/lucinda/internal/task_management_layer/postman"
-	taskboard "github.com/cpmores/lucinda/internal/task_management_layer/task_board"
-	tasktracer "github.com/cpmores/lucinda/internal/task_management_layer/task_tracer"
 	taskwrapper "github.com/cpmores/lucinda/internal/task_wrapper"
 	userserver "github.com/cpmores/lucinda/internal/user_server"
+
+	"github.com/cpmores/lucinda/internal/config"
 )
 
-func loadConfig() (*viper.Viper, error) {
-	v := viper.New()
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
-
-	// Look in ./configs/server/ relative to working dir or binary.
-	v.AddConfigPath(".")
-	v.AddConfigPath("./configs/server")
-	if execPath, err := os.Executable(); err == nil {
-		v.AddConfigPath(filepath.Join(filepath.Dir(execPath), "configs", "server"))
-	}
-
-	if err := v.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
-	// Defaults
-	v.SetDefault("http.port", 9090)
-	v.SetDefault("hardware_monitor.interval_sec", 5)
-	v.SetDefault("transport.libp2p.outs_length", 20)
-	v.SetDefault("transport.libp2p.ins_length", 100)
-
-	return v, nil
-}
-
 func main() {
+	cfgPath := flag.String("config", "", "path to the NodeConfig manifest (env: LUCINDA_CONFIG)")
+	flag.Parse()
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// ── Config ────────────────────────────────────────────────────────────
-	v, err := loadConfig()
+	// ── Config (typed, K8s-style manifest) ───────────────────────────────
+	cfg, err := config.Load(config.Path(*cfgPath))
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
@@ -80,27 +58,27 @@ func main() {
 	eb := eventbus.NewInMemoryEventBus(rootLogger.Child("Level-1-Eventbus"))
 
 	tp, err := transport.NewLibp2pTransport(transport.Libp2pTransportOptions{
-		Addrs:      v.GetStringSlice("transport.libp2p.addrs"),
-		OutsLength: int64(v.GetInt("transport.libp2p.outs_length")),
-		InsLength:  int64(v.GetInt("transport.libp2p.ins_length")),
+		Addrs:      cfg.Spec.Transport.Libp2p.Addrs,
+		OutsLength: cfg.Spec.Transport.Libp2p.OutsLength,
+		InsLength:  cfg.Spec.Transport.Libp2p.InsLength,
 		Logger:     rootLogger.Child("Level-1-Transport"),
 	})
 	if err != nil {
 		log.Fatalf("transport: %v", err)
 	}
 
-	hm := hardwaremonitor.NewHardwareMonitor(1, rootLogger.Child("Level-1-HardwareMonitor"))
+	hm := hardwaremonitor.NewHardwareMonitor(cfg.Spec.HardwareMonitor.IntervalSec, rootLogger.Child("Level-1-HardwareMonitor"))
 	pc := provider.NewProviderController(rootLogger.Child("Level-1-ProviderController"))
 
-	if err := pc.LoadProviders(v); err != nil {
+	if err := pc.LoadProviders(ctx, cfg.Spec.Providers); err != nil {
 		log.Fatalf("load providers: %v", err)
 	}
 
-	rootLogger.RegisterWithManager(mm)
-	eb.RegisterWithManager(mm)
-	tp.RegisterWithManager(mm)
-	hm.RegisterWithManager(mm)
-	pc.RegisterWithManager(mm)
+	_ = rootLogger.RegisterWithManager(mm)
+	_ = eb.RegisterWithManager(mm)
+	_ = tp.RegisterWithManager(mm)
+	_ = hm.RegisterWithManager(mm)
+	_ = pc.RegisterWithManager(mm)
 
 	// ── Phase 2: Task Workflow ──────────────────────────────────────────
 	planner := taskplanner.NewTaskPlanner(rootLogger.Child("Level-3-TaskPlanner"))
@@ -113,15 +91,15 @@ func main() {
 	tracer := tasktracer.NewTaskTracer(rootLogger.Child("Level-2-TaskTracer"))
 	monitor := taskmonitor.NewTaskMonitor(rootLogger.Child("Level-2-TaskMonitor"))
 
-	planner.RegisterWithManager(mm)
-	commander.RegisterWithManager(mm)
-	executor.RegisterWithManager(mm)
-	telemetryB.RegisterWithManager(mm)
-	streamR.RegisterWithManager(mm)
-	postman.RegisterWithManager(mm)
-	board.RegisterWithManager(mm)
-	tracer.RegisterWithManager(mm)
-	monitor.RegisterWithManager(mm)
+	_ = planner.RegisterWithManager(mm)
+	_ = commander.RegisterWithManager(mm)
+	_ = executor.RegisterWithManager(mm)
+	_ = telemetryB.RegisterWithManager(mm)
+	_ = streamR.RegisterWithManager(mm)
+	_ = postman.RegisterWithManager(mm)
+	_ = board.RegisterWithManager(mm)
+	_ = tracer.RegisterWithManager(mm)
+	_ = monitor.RegisterWithManager(mm)
 
 	// ── Init verification ────────────────────────────────────────────────
 	if err := mm.VerifyInit(); err != nil {
@@ -166,11 +144,9 @@ func main() {
 	// ── HTTP Server (wrapper needs the transport's NodeID, which is only
 	// ── set once the transport is started). ───────────────────────────────
 	wrapper := taskwrapper.New(eb, monitor, string(tp.ID()))
-	httpPort := v.GetInt("http.port")
 	srv := userserver.NewHTTPServer(wrapper, monitor, rootLogger.Child("Level-4-HTTPServer"))
 
-	// ── HTTP Server ──────────────────────────────────────────────────────
-	addr := fmt.Sprintf(":%d", httpPort)
+	addr := fmt.Sprintf(":%d", cfg.Spec.HTTP.Port)
 	go func() {
 		if err := srv.Start(addr); err != nil && err != context.Canceled {
 			log.Printf("http server: %v", err)
@@ -179,6 +155,6 @@ func main() {
 
 	<-ctx.Done()
 	_ = srv.Shutdown(context.Background())
-	hm.Stop()
-	tp.Stop()
+	_ = hm.Stop()
+	_ = tp.Stop()
 }

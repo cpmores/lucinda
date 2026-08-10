@@ -25,6 +25,7 @@ bash scripts/start_lucinda.sh stop     # stop
 bash scripts/test_smoke_simple.sh      # plan_execute: status/step_result/done
 bash scripts/test_smoke.sh             # react (default): ReAct loop → status/step_result/stream/done
 AGENT=plan_execute bash scripts/test_smoke.sh  # same script, simpler plan-and-execute agent
+bash scripts/test_release.sh           # failure flow: Released → board give-up → done(error)
 ```
 
 Note: `scripts/test_e2e.sh` was removed; the two smoke scripts above are the canonical end-to-end checks.

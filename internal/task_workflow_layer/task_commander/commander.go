@@ -240,6 +240,10 @@ func (c *commander) onTraced(msg *APITaskmsg.TaskTracedMsg) {
 				c.finishTx(pr, txr, msg.Output)
 			}
 		}
+	case APITask.StateReleased:
+		// The executor failed and the board is reassigning the task — this is
+		// not terminal. The board emits the final Failed only when candidates
+		// are exhausted, which is what fails the plan.
 	case APITask.StateFailed:
 		c.emitFinalizing(pr)
 		c.terminate(pr, APITask.PlanResult{Status: APITask.PlanError, Text: "transaction action failed"})

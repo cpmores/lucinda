@@ -1,11 +1,12 @@
-# configs/server/config.yaml — NodeConfig manifest
+# configs/server/config-nodeB.yaml — a second mesh node.
+# Serves a model node A lacks, so cross-node execution is observable.
 apiVersion: lucinda.dev/v1
 kind: NodeConfig
 metadata:
-  name: node-a
+  name: node-b
 spec:
   http:
-    port: 9090
+    port: 9091
 
   transport:
     type: libp2p
@@ -19,13 +20,13 @@ spec:
     intervalSec: 5
 
   providers:
-    - id: "vllm"
+    - id: "vllm-b"
       driver: "vllm"
       host: "localhost"
       port: 8000
       max_context_tokens: 2048
       models:
-        - id: "qwen-2.5-gptq"
+        - id: "qwen-2.5-instruct"
           labels:
             modality: "text"
             employer: "TaskPlanner,TaskCommander,TaskExecutor"

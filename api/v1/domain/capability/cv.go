@@ -21,6 +21,11 @@ type CapabilityCV struct {
 	Labels   []string                     `json:"labels"` // e.g. ["gpu", "vision"]
 }
 
+type BestScore struct {
+	Best  *CapabilityCV
+	Score int
+}
+
 func Contains(slice []string, item string) bool {
 	return slices.Contains(slice, item)
 }

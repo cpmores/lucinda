@@ -16,6 +16,7 @@ package taskboard
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -55,12 +56,18 @@ type TaskBoard interface {
 // bid qualifies, before the task is given up (which fails the plan).
 const maxAdRetries = 3
 
+// firstCandidate bounds the number of candidates to consider for assignment.
+// If first one failed, then get the second, etc.
+const firstCandidate = 3
+
 // hiringState tracks one of my tasks from advertisement to assignment.
 type hiringState struct {
-	task     *APITask.Task
-	bids     []APICapability.CapabilityCV
-	assigned bool
-	retries  int
+	task       *APITask.Task
+	bids       []APICapability.CapabilityCV
+	bestScores []APICapability.BestScore
+	candidate  int
+	assigned   bool
+	retries    int
 }
 
 type board struct {
@@ -181,6 +188,7 @@ func (b *board) advertise(hs *hiringState) {
 	if hs.task.Spec.Kind == APITask.TaskKindReason {
 		window = reasonBidWindow
 	}
+
 	go func() {
 		time.Sleep(window)
 		b.assignBest(hs.task.Meta.ID)
@@ -211,9 +219,9 @@ func (b *board) assignBest(taskID APITask.TaskID) {
 		b.mu.Unlock()
 		return
 	}
-	best := bestBid(hs.bids, &hs.task.Spec)
+	bests := bestBids(hs.bids, &hs.task.Spec)
 	// NOTE: RETRY Done here
-	if best == nil {
+	if bests == nil {
 		if hs.retries < maxAdRetries {
 			hs.retries++
 			b.mu.Unlock()
@@ -227,6 +235,9 @@ func (b *board) assignBest(taskID APITask.TaskID) {
 		b.failPlan(taskID)
 		return
 	}
+
+	best := bests[0].Best
+	hs.bestScores = bests
 	hs.assigned = true
 	b.mu.Unlock()
 
@@ -276,12 +287,60 @@ func (b *board) onTaskTerminated(data any) {
 	if !ok || msg.Owner != string(b.tp.ID()) {
 		return
 	}
-	if msg.State != APITask.StateDone && msg.State != APITask.StateFailed {
+	if msg.State != APITask.StateDone && msg.State != APITask.StateFailed && msg.State != APITask.StateReleased {
 		return
 	}
 	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Released: the executor failed; reassign to the next candidate, or when
+	// none remain emit the final Failed so the commander fails the plan.
+	if msg.State == APITask.StateReleased {
+		taskID := msg.TaskID
+		hs, ok := b.myAds[taskID]
+		if !ok {
+			return
+		}
+		hiringCandidate := hs.candidate + 1
+		if hiringCandidate >= firstCandidate || hiringCandidate >= len(hs.bestScores) {
+			// Give up — drop the task and emit the terminal Failed. Deleted
+			// first so the board ignores its own Failed emit.
+			delete(b.myAds, taskID)
+			fail := APITaskmsg.TaskTracedMsg{
+				TaskID: taskID,
+				PlanID: hs.task.TaskPlan.ID,
+				State:  APITask.StateFailed,
+				Owner:  hs.task.Meta.Owner,
+			}
+			_ = b.eb.Publish(APIEvent.TaskTraced, APIEvent.NewEvent(APIEvent.TaskTraced, fail))
+			b.log.Error("no more candidates, failing plan", "task", taskID)
+			return
+		}
+		hs.candidate++
+		assign := APITaskmsg.TaskAssignMsg{
+			TaskID: taskID,
+			Spec:   hs.task.Spec,
+			Prompt: hs.task.Spec.Prompt,
+			Owner:  hs.task.Meta.Owner,
+			PlanID: hs.task.TaskPlan.ID,
+		}
+
+		best := hs.bestScores[hiringCandidate].Best
+		if best.PeerID == string(b.tp.ID()) {
+			_ = b.eb.Publish(APIEvent.TaskAssigned, APIEvent.NewEvent(APIEvent.TaskAssigned, assign))
+			b.log.Info("self-assigned (retry)", "task", taskID)
+			return
+		}
+		if err := b.pm.SendEvent(b.ctx, APINode.NodeID(best.PeerID), APIEvent.TaskAssign, assign); err != nil {
+			b.log.Error("assign failed", "task", taskID, "peer", best.PeerID, "err", err)
+			return
+		}
+		b.log.Info("assigned to peer (retry)", "task", taskID, "peer", best.PeerID)
+		return
+	}
+
+	// Done, or Failed (the board's own give-up) — clean up.
 	delete(b.myAds, msg.TaskID)
-	b.mu.Unlock()
 }
 
 // ── Employee side ──────────────────────────────────────────────────────
@@ -334,18 +393,28 @@ func (b *board) buildCV(taskID APITask.TaskID) APICapability.CapabilityCV {
 
 // bestBid returns the highest-scoring qualifying bid, or nil if none.
 // OPTIMIZE: bestBid
-func bestBid(bids []APICapability.CapabilityCV, spec *APITask.TaskSpec) *APICapability.CapabilityCV {
-	var best *APICapability.CapabilityCV
+func bestBids(bids []APICapability.CapabilityCV, spec *APITask.TaskSpec) []APICapability.BestScore {
+	var BestScores []APICapability.BestScore
 	for i := range bids {
 		score := matchCV(&bids[i], spec)
 		if score < 0 {
 			continue
 		}
-		if best == nil || score > matchCV(best, spec) {
-			best = &bids[i]
-		}
+
+		BestScores = append(BestScores, APICapability.BestScore{
+			Best:  &bids[i],
+			Score: score,
+		})
 	}
-	return best
+
+	sort.Slice(BestScores, func(a, b int) bool {
+		return BestScores[a].Score > BestScores[b].Score
+	})
+
+	if len(BestScores) > firstCandidate {
+		BestScores = BestScores[0:firstCandidate]
+	}
+	return BestScores
 }
 
 // OPTIMIZE: score the CVs, needs to manage after the system is completed
