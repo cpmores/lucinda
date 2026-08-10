@@ -25,12 +25,55 @@ type PlanResult struct {
 
 // ── TaskPlan ──────────────────────────────────────────────────────────
 
+// AgentArch is the execution architecture a plan runs under. Phase 1 ships
+// Plan-Execute; ReAct is reserved for the reAct loop.
+type AgentArch string
+
+const (
+	ArchPlanExecute AgentArch = "plan_execute"
+	ArchReAct       AgentArch = "react"
+)
+
+// Transaction is one semantic unit of work the planner splits a request
+// into (e.g. "write the doc", "generate the video"). A transaction is the
+// unit a Commander executes: its Goal drives a ReAct loop, or is dispatched
+// as a single action under Plan-and-Execute. Deps lists prerequisite
+// transactions whose results are fed into the goal context.
+type Transaction struct {
+	ID   TaskID   `json:"id"`
+	Goal string   `json:"goal"`
+	Deps []TaskID `json:"deps,omitempty"`
+
+	// Capability hints for board matching.
+	Tools  []string `json:"tools,omitempty"`
+	Labels []string `json:"labels,omitempty"`
+	Model  string   `json:"model,omitempty"`
+}
+
 // TaskPlan is a decomposed macro-task ready for the TaskBoard.
 // The TaskPlanner builds it; the TaskStateManager tracks it.
 type TaskPlan struct {
 	// ── identifies ──────────────────────────────────────────────────────────
 	ID    TaskID `json:"id"`
 	Owner string `json:"owner"`
+
+	// ── Execution model ────────────────────────────────────────────────
+	// Architecture governs whether this plan is executed as a static DAG
+	// (plan_execute) or as a reAct loop where the commander decides the next
+	// step from each task result (react).
+	Architecture AgentArch `json:"architecture,omitempty"`
+	// Goal is the original user request. Plan-Execute decomposes it into the
+	// DAG; ReAct feeds it to the reasoning LLM each iteration.
+	Goal string `json:"goal,omitempty"`
+	// MaxSteps bounds the ReAct loop (0 = default cap). Unused by
+	// Plan-Execute.
+	MaxSteps int `json:"max_steps,omitempty"`
+
+	// ── Transactions ───────────────────────────────────────────────────
+	// Transactions are the semantic units of work the planner decomposes the
+	// request into. Each is handled by its own Commander. Independent
+	// transactions run in parallel; dependent ones (Deps) run in order.
+	Transactions []Transaction `json:"transactions,omitempty"`
 
 	// ── Nodes ──────────────────────────────────────────────────────────
 	Roots           []TaskID             `json:"roots"`            // entry points with no dependencies
@@ -44,6 +87,22 @@ type TaskPlan struct {
 
 	// ── Callback ─────────────────────────────────────────────────────────
 	Notify chan<- PlanResult `json:"-"` // terminal notification — sent exactly once per plan
+}
+
+// ToTasks materializes every node in the plan into a Task, propagating the
+// plan's Owner into each task's Meta. A remote executor that sees only one
+// task still knows where to route results and telemetry.
+func (p *TaskPlan) ToTasks() []Task {
+	tasks := make([]Task, 0, len(p.Nodes))
+	for id, node := range p.Nodes {
+		tasks = append(tasks, Task{
+			Meta:     TaskMeta{ID: id, Type: node.Spec.Stage, Owner: p.Owner},
+			Spec:     node.Spec,
+			TaskPlan: p,
+			TaskNode: node,
+		})
+	}
+	return tasks
 }
 
 // TaskNode is a single sub-task in the DAG.

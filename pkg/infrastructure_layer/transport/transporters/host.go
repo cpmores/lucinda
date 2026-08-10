@@ -241,7 +241,7 @@ func (lt *Libp2pTransport) Stop() error {
 	lt.Lock()
 	if !lt.IsStarted {
 		lt.Unlock()
-		return fmt.Errorf("libp2p transport is not started")
+		return nil
 	}
 
 	// close all incoming channels
@@ -621,7 +621,9 @@ func (lt *Libp2pTransport) GetModuleType() APIModule.ModuleType {
 }
 
 func (lt *Libp2pTransport) GetModuleID() APIModule.ModuleID {
-	return APIModule.NewModuleID(lt.GetModuleType(), "libp2p")
+	// "default" matches the name every other module registers under, so
+	// components resolving DependsOn{Transport: "default"} find it.
+	return APIModule.NewModuleID(lt.GetModuleType(), "default")
 }
 
 func (lt *Libp2pTransport) CheckHealth() APIModule.ModuleHealth {

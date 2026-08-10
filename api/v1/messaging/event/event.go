@@ -20,6 +20,8 @@ const (
 	TaskPreplanned  EventType = "task.preplanned" // single-node plan, preplanned, subscribed by planner
 	TaskReady       EventType = "task.ready"
 	TaskRunning     EventType = "task.running"
+	// Deprecated: task completion is now signalled solely by TaskTraced
+	// (Done / Failed states). These two remain for spec compatibility.
 	TaskDone        EventType = "task.done"
 	TaskFailed      EventType = "task.failed"
 	TaskRepublished EventType = "task.republished"
@@ -27,10 +29,35 @@ const (
 	// Task delivery
 	TaskAdReceived EventType = "task.ad.received"
 	TaskCVReceived EventType = "task.cv.received"
-	TaskAssigned   EventType = "task.assigned"
+	// TaskTraced carries a task lifecycle state change from the TaskTracer,
+	// so observers (e.g. the commander judging progress) get live updates.
+	TaskTraced EventType = "task.traced"
+	// TaskAssign is the wire topic for a board assigning a task to a remote
+	// executor (unicast to the winner). TaskAssigned is the local trigger the
+	// executor subscribes to — a remote assignment is re-published locally
+	// under TaskAssigned by the winner's board.
+	TaskAssign    EventType = "task.assign"
+	TaskAssigned  EventType = "task.assigned"
 
 	// Hardware
 	HardwareChanged EventType = "hardware.changed"
+
+	// Workflow — planner ↔ commander ↔ planner loop
+	TaskPlanned       EventType = "task.planned"        // planner → commander, carries *TaskPlan
+	TaskPlanDone      EventType = "task.plan.done"      // commander detects completion → planner, carries TaskPlanResultMsg
+	TaskPlanCompleted EventType = "task.plan.completed" // planner → wrapper, carries TaskPlanResultMsg
+
+	// User telemetry — unicast to the plan owner node for progress display.
+	// Distinct from the coordination events above: these exist only to show
+	// the user which agent is doing what, and are consumed by TaskMonitor.
+	TelemetryPlanning   EventType = "telemetry.planner.planning"
+	TelemetryPlanned    EventType = "telemetry.planner.planned"
+	TelemetryThinking   EventType = "telemetry.commander.thinking"
+	TelemetryWaiting    EventType = "telemetry.commander.waiting"
+	TelemetryFinalizing EventType = "telemetry.commander.finalizing"
+	TelemetryRunning    EventType = "telemetry.executor.running"
+	TelemetryExecDone   EventType = "telemetry.executor.done"
+	TelemetryStepResult EventType = "telemetry.step_result"
 )
 
 // Event represents an event in the system

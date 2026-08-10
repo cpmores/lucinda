@@ -1,6 +1,6 @@
 # Lucinda
 
-A **compute-aware distributed agent orchestrator** for the edge. Lucinda bridges the gap between high-level agent frameworks and the physical hardware they run on — decomposing user requests into DAGs of sub-tasks, scheduling them across a decentralized mesh based on real-time hardware telemetry, and synthesizing the results into a single response.
+A **compute-aware distributed agent orchestrator** for the edge. Lucinda decomposes a user request into **semantic transactions**, hands each to its own Commander (a ReAct or Plan-and-Execute agent), schedules the resulting tasks across a decentralized mesh based on real-time hardware telemetry and capability bidding, and streams the synthesized answer back. Providers are reached **only through executors**, so any node with a capable model can serve any step — planner and commander never touch a model directly.
 
 ---
 
@@ -9,15 +9,16 @@ A **compute-aware distributed agent orchestrator** for the edge. Lucinda bridges
 - [What Problem It Solves](#what-problem-it-solves)
 - [Architecture](#architecture)
   - [Four-Layer Blueprint](#four-layer-blueprint)
+  - [Semantic Transactions + Multi-Commander](#semantic-transactions--multi-commander)
   - [Publish-Lease TaskBoard](#publish-lease-taskboard)
-  - [Plan-Execute-Reduce Pipeline](#plan-execute-reduce-pipeline)
-  - [Stream Isolation](#stream-isolation)
+  - [Provider Behind the Executor](#provider-behind-the-executor)
+  - [Telemetry & Stream Isolation](#telemetry--stream-isolation)
 - [Project Status](#project-status)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Configuration](#configuration)
   - [Running](#running)
-  - [End-to-End Test](#end-to-end-test)
+  - [Smoke Tests](#smoke-tests)
 - [Project Structure](#project-structure)
 - [Development](#development)
   - [Testing](#testing)
@@ -40,89 +41,109 @@ The result: edge deployments suffer from **resource starvation**, **task blockin
 
 Lucinda sits between these layers. It gives agent frameworks a **hardware-aware runtime** that:
 
-- Continuously collects live telemetry (vRAM, CPU, active models) from every node
-- Decomposes macro-tasks into DAGs of sub-tasks with explicit resource requirements via LLM
-- Runs decentralized "Task Interviews" to match sub-tasks to the best-fit node
-- Executes sub-tasks in parallel across providers (vLLM, Ollama, cloud APIs)
-- Reduces results into a single polished response
-- Recovers transparently from node failure via TTL-bound lease expiry
+- Runs a **semantic planner** on any node (even a phone) to split a request into transactions — not fine-grained steps
+- Hands each transaction to its **own Commander** (ReAct or Plan-and-Execute), running in parallel or dependency-ordered
+- Routes every task through a decentralized **Publish-Lease TaskBoard** that matches capability (model, VRAM, tools) to the best-fit node
+- Executes tasks on **any node that serves the required model** — the planner/commander never hold a provider
+- Streams the **final answer only** to the user over a dedicated data plane; all intermediate work stays structured
+- Tracks every task's lifecycle through a single `TaskTraced` signal, with telemetry unicast back to the plan owner
 
 ---
 
 ## Architecture
 
-![Lucinda Architecture](docs/photos/Lucinda-poster.png)
-
 ### Four-Layer Blueprint
 
 ```
-┌──────────────────────────────────────────────┐
-│  Layer 4 — Server & TaskWrapper              │
-│  HTTP ingress, ChatRequest → Task, SSE stream│
-├──────────────────────────────────────────────┤
-│  Layer 3 — Task Workflow                     │
-│  Plan (LLM DAG decomposition)                │
-│  Execute (parallel sub-task invocation)      │
-│  Reduce (LLM synthesis → unified response)   │
-├──────────────────────────────────────────────┤
-│  Layer 2 — Task Management                   │
-│  TaskStateManager (FSM per sub-task)         │
-│  TaskBoard + Publish-Lease protocol          │
-│  TaskPostman (EventBus ↔ Transport bridge)   │
-│  TaskTracer (observability store)            │
-├──────────────────────────────────────────────┤
-│  Layer 1 — Infrastructure                    │
-│  EventBus (in-memory, macro signaling)       │
-│  Transport (libp2p + mDNS discovery)         │
-│  HardwareMonitor (live CPU/memory)           │
-│  ProviderController (vLLM, Ollama, cloud)    │
-│  ModuleManager (registry + capability grant) │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Layer 4 — Server & TaskWrapper                              │
+│  HTTP ingress (/chat), SSE egress (/stream), TaskMonitor     │
+├──────────────────────────────────────────────────────────────┤
+│  Layer 3 — Task Workflow                                     │
+│  TaskPlanner  (semantic decomposition, provider-free)        │
+│  TaskCommander (one per transaction: ReAct / Plan-Execute)   │
+│  TaskExecutor  (reason / execute / synthesize — the ONLY     │
+│                component that touches a provider)            │
+│  TaskMonitor   (aggregates telemetry + stream → SSE)         │
+├──────────────────────────────────────────────────────────────┤
+│  Layer 2 — Task Management                                   │
+│  TaskBoard      (Publish-Lease: advertise → bid → assign)    │
+│  TaskTracer     (task lifecycle registry + TaskTraced)       │
+│  TaskPostman    (coordination EventBus ↔ Transport bridge)   │
+│  TelemetryBridge(progress telemetry unicast to owner)        │
+│  StreamRouter   (final-answer token stream data plane)       │
+├──────────────────────────────────────────────────────────────┤
+│  Layer 1 — Infrastructure                                    │
+│  EventBus, Transport (libp2p + mDNS), HardwareMonitor,       │
+│  ProviderController (vLLM, Ollama), ModuleManager, Logger    │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-Each layer depends only on the one below it. Layers communicate through the EventBus for state transitions and the Transport for cross-node data payloads.
+Each layer depends only on the ones below it. Layers communicate through the EventBus for control, the Transport for cross-node messages, and a private stream protocol for token data.
+
+### Semantic Transactions + Multi-Commander
+
+The planner decomposes a request into **semantic transactions** — user-visible deliverables ("write the doc", "generate the video", "adjust the AC") — each with a goal and dependencies:
+
+```
+Plan = Transaction DAG
+  ├─ t1 {Goal: 写文档, Deps: []}
+  ├─ t2 {Goal: 生成视频, Deps: []}
+  └─ t3 {Goal: 调空调, Deps: []}
+```
+
+Each transaction gets **its own Commander**:
+
+- **Independent transactions run in parallel** (one Commander goroutine per transaction)
+- **Dependent transactions run in order** — a transaction starts only after its `Deps` complete, and the dependency outputs are fed into its goal context
+- The plan's `Architecture` decides how each Commander behaves:
+  - **`react`**: the Commander runs a reasoning loop (reason → act → observe) against the transaction goal until it decides `done`
+  - **`plan_execute`**: the Commander dispatches the transaction goal once through the board
+
+When all transactions complete, their results are merged into the final answer.
 
 ### Publish-Lease TaskBoard
 
-The architectural centerpiece. Instead of a centralized scheduler, sub-tasks are published onto a shared **TaskBoard** and claimed by peers through a message protocol:
+The architectural centerpiece. Instead of a centralized scheduler, every task — whether a plan action or a commander's reasoning step — is advertised and claimed through a **Publish-Lease** protocol:
 
 ```
-Publisher                    TaskBoard                   Worker
-   │                             │                          │
-   │── TaskBroadcastMsg ────────►│                          │
-   │   (publish DAG node Ad)     │                          │
-   │                             │◄── TaskRequestMsg ───────│
-   │                             │    (submit Capability CV) │
-   │                             │── TaskAssignMsg ────────►│
-   │                             │    (TTL-bound lease)      │
-   │                             │◄── TaskResultMsg ────────│
-   │                             │    (completed output)     │
+Employer                      TaskBoard (mesh)                  Worker
+   │                                │                              │
+   │── TaskBroadcastMsg (ad) ──────►│                              │
+   │                                │◄── TaskCVMsg (CapabilityCV)──│
+   │                                │    (bid: models, VRAM, tools)│
+   │                                │── TaskAssignMsg ────────────►│
+   │                                │    (unicast to the winner)   │
+   │◄───────────────────────────────│── TaskTraced (result) ───────│
 ```
 
-- **Lease TTL**: 30-second claim lease. If a peer doesn't call `Start` within the window, the lease expires and the sub-task reverts to Ready.
-- **Self-healing**: The TaskBoard heartbeat (every 5s) re-offers expired nodes. Surviving peers re-interview and re-claim them transparently.
-- **No central lock manager**: Decentralized by design — any node can host the TaskBoard.
-- **Self-assignment**: If no qualified bids arrive, the publishing node executes the task locally.
-- **Cross-node routing**: TaskAssignMsg carries an `OriginNodeID` so remote executors know where to send results back. The Transport bridges results to the origin's EventBus via Postman.Deliver.
+- **Capability bidding**: a node with no matching model does not bid; the best-qualified bid (VRAM, model, tools, labels) wins. The matching **strategy lives in the TaskBoard** (`matchCV`) so it can evolve without touching the API contract.
+- **Per-kind bid windows**: `reason` tasks use a short window (quick internal LLM calls), `execute`/`synthesize` use the normal one.
+- **Self-bid fast path**: a lone node assigns itself after one window.
+- **Retry**: if no bid qualifies, the ad is re-issued up to 3 times; giving up fails the plan instead of hanging.
+- **Cross-node routing**: results flow back through the `TaskTraced` signal, which the postman unicasts to the plan owner.
 
-### Plan-Execute-Reduce Pipeline
+### Provider Behind the Executor
 
-Every macro-task flows through three stages:
+Only the **TaskExecutor** ever touches a provider. The planner and commander are provider-free:
 
-1. **Plan** — `TaskPlanner` asks an LLM to decompose the request into a DAG of sub-tasks, each with tool requirements, resource labels, and dependency edges. A reduce node is always appended to synthesize the final response. Falls back to a single-node plan if the LLM is unavailable or JSON parsing fails.
-2. **Execute** — `TaskExecutor` subscribes to `TaskAssigned` events and executes sub-tasks via the assigned provider. Nodes run in **parallel goroutines** so the claim lease never expires on queued nodes. Each node's state is tracked by the `TaskStateManager` FSM (Pending→Ready→Claimed→Running→Done).
-3. **Reduce** — `TaskReducer` watches for reduce-stage nodes to become Ready, collects all predecessor outputs from the `TaskTracer`, generates a synthesized response via LLM, and signals plan completion. The final output flows through the plan's `Notify` channel to the SSE client. Context truncation and fallback to raw concatenation prevent hangs when the combined input exceeds the model's context window.
+- **Planner** issues semantic **decomposition** as a `reason` task through the board
+- **Commander** issues its reasoning decisions as `reason` tasks, its work as `execute` tasks, and the final answer as a `synthesize` task
+- **Executor** runs the three task kinds: `reason`/`execute` → one-shot `Generate`; `synthesize` → `Stream`, routing each token chunk to the plan owner via the stream router
 
-### Stream Isolation
+This makes every step **cross-node by construction**: whichever node serves the model handles it. A commander's node needs no provider at all.
 
-Lucinda separates control-plane and data-plane traffic:
+### Telemetry & Stream Isolation
 
-| Traffic type | Channel | Purpose |
+Lucinda separates control, progress, and data planes:
+
+| Traffic | Channel | Purpose |
 |---|---|---|
-| State transitions (task created, lease expired) | Global **EventBus** | Macro coordination, low volume |
-| Raw LLM token streams | Private **Transport** channels | High-frequency, node-to-node, bypasses EventBus |
+| Coordination (`TaskTraced`, ads, assignments) | EventBus / task protocol | Control plane, low volume |
+| User-facing progress (planning/thinking/running…) | Telemetry protocol → **unicast to plan owner** | Progress display, low volume |
+| Final-answer token chunks | **Private stream protocol** (`/lucinda/stream/1.0.0`) | Data plane, high frequency |
 
-This prevents token-volume traffic from saturating the control plane — a critical design choice for network stability under load.
+Only the **final answer** is streamed; intermediate reasoning and work stay structured. Raw tokens never ride the EventBus.
 
 ---
 
@@ -130,27 +151,24 @@ This prevents token-volume traffic from saturating the control plane — a criti
 
 | Component | Status | Location |
 |---|---|---|
-| **EventBus** (in-memory) | ✅ Done | `pkg/infrastructure_layer/eventbus/` |
-| **Transport** (libp2p + mDNS) | ✅ Done | `pkg/infrastructure_layer/transport/transporters/` |
-| **HardwareMonitor** | ✅ CPU + memory | `pkg/infrastructure_layer/hardware_monitor/` |
-| **ModuleManager** | ✅ Registry + capability grant | `pkg/infrastructure_layer/module_manager/` |
-| **ProviderController + Drivers** (vLLM, Ollama) | ✅ LoadProviders, Generate, Stream | `pkg/infrastructure_layer/provider/` |
-| **MaxContextTokens** | ✅ Per-provider configurable context window | config + drivers |
-| **Toolbox & ContextManager** | 🔴 Not started | — |
-| **TaskStateManager** | ✅ DAG FSM + cascade + lease watchdog | `internal/task_management_layer/task_state_manager/` |
-| **TaskBoard + Publish-Lease** | ✅ Broadcast/bid/assign/heartbeat + cross-node routing | `internal/task_workflow_layer/task_board/` |
-| **TaskPostman** | ✅ Watch + Deliver bridge | `internal/task_management_layer/task_postman/` |
-| **TaskTracer** | ✅ Local + assigned observability | `internal/task_management_layer/task_tracer/` |
-| **CapabilityCV** | ✅ Match scoring (VRAM, model, tools, labels) | `api/v1/capability/` |
-| **TaskPlanner** | ✅ LLM decomposition + fallback | `internal/task_workflow_layer/task_planner/` |
-| **TaskExecutor** | ✅ Parallel execution + cross-node routing | `internal/task_workflow_layer/task_executor/` |
-| **TaskReducer** | ✅ LLM synthesis + context truncation + fallback | `internal/task_workflow_layer/task_reducer/` |
-| **TaskWrapper** | ✅ ChatRequest → Task + tracking ID | `internal/task_wrapper/` |
-| **HTTP Server** | ✅ POST /chat, SSE /stream, /healthz, graceful shutdown | `internal/user_server/` |
-| **main.go (cmd/pc)** | ✅ Config-driven bootstrap via viper + YAML | `cmd/pc/main.go` |
-| **Configuration** | ✅ Providers, transport, hardware, HTTP | `configs/server/config.yaml` |
-| **E2E Test** | ✅ Tests full pipeline, validates non-empty output | `scripts/test_e2e.sh` |
-| **Tests** | ✅ 12 test packages | `*_test.go` |
+| EventBus (in-memory) | ✅ | `pkg/infrastructure_layer/eventbus/` |
+| Transport (libp2p + mDNS) | ✅ | `pkg/infrastructure_layer/transport/transporters/` |
+| HardwareMonitor | ✅ | `pkg/infrastructure_layer/hardware_monitor/` |
+| ModuleManager + DI | ✅ `DependsOn`/`DependsEnable` | `pkg/infrastructure_layer/module_manager/` |
+| ProviderController + drivers (vLLM, Ollama) | ✅ `Generate`/`Stream`, `ModelFilter`/`GetProvByFilter` | `pkg/infrastructure_layer/provider/` |
+| TaskBoard (Publish-Lease, `matchCV` strategy) | ✅ | `internal/task_management_layer/task_board/` |
+| TaskTracer (`TaskTraced` lifecycle) | ✅ | `internal/task_management_layer/task_tracer/` |
+| TaskPostman (EventBus ↔ Transport) | ✅ | `internal/task_management_layer/postman/` |
+| TelemetryBridge (progress → owner) | ✅ | `internal/task_management_layer/telemetry_bridge/` |
+| StreamRouter (token stream data plane) | ✅ | `internal/task_management_layer/stream_router/` |
+| TaskPlanner (semantic decomposition, provider-free) | ✅ | `internal/task_workflow_layer/task_planner/` |
+| TaskCommander (multi-transaction, ReAct/Plan-Execute, provider-free) | ✅ | `internal/task_workflow_layer/task_commander/` |
+| TaskExecutor (reason/execute/synthesize task kinds) | ✅ | `internal/task_workflow_layer/task_executor/` |
+| TaskMonitor (SSE aggregation) | ✅ | `internal/task_workflow_layer/task_monitor/` |
+| HTTP server (`/chat`, `/stream`, `/healthz`) | ✅ | `internal/user_server/` |
+| Scripts (start/stop, smoke tests) | ✅ | `scripts/` |
+| Toolbox / MCP / image-video drivers | 🔴 Not started | — |
+| ContextManager (session state + KV-cache affinity) | 🔴 Not started | — |
 
 ---
 
@@ -168,13 +186,19 @@ This prevents token-volume traffic from saturating the control plane — a criti
 ```yaml
 provider_controller:
   providers:
-    - id: "vllm-qwen"
+    - id: "vllm"
       driver: "vllm"
       host: "localhost"
       port: 8000
       max_context_tokens: 2048
       models:
-        - "qwen-2.5-gptq"
+        - id: "qwen-2.5-gptq"
+          labels:
+            modality: "text"
+            employer: "TaskPlanner,TaskCommander,TaskExecutor"
+          params_b: 7
+          context_tokens: 2048
+          min_vram: 17179869184   # 16 GiB
 
 transport:
   type: "libp2p"
@@ -196,40 +220,32 @@ Config search paths: `./configs/server/`, `.`, and binary-relative `configs/serv
 ### Running
 
 ```bash
-go run ./cmd/pc/
-# → lucinda: all services started on :9090
+bash scripts/start_lucinda.sh          # start (background, pid in /tmp/lucinda.pid)
+bash scripts/start_lucinda.sh stop     # stop
 ```
 
-Bootstrap order: Config → EventBus → Transport → HardwareMonitor → ProviderController (LoadProviders) → TaskPostman → TaskTracer → TaskStateManager → TaskBoard → TaskExecutor → TaskPlanner → TaskReducer → HTTP Server.
-
-### End-to-End Test
+### Smoke Tests
 
 ```bash
-bash ./scripts/test_e2e.sh
-```
+# Simple: plan_execute → status/step_result/done
+bash scripts/test_smoke_simple.sh --start
 
-Sends a POST to `/chat`, polls the SSE `/stream` endpoint, validates the response is non-empty.
+# Complex: ReAct loop → status/step_result/stream/done
+bash scripts/test_smoke.sh --start
+```
 
 Manual test:
 
 ```bash
-# Send a request
+# Send a request (agent: plan_execute | react)
 curl -s -X POST http://localhost:9090/chat \
   -H "Content-Type: application/json" \
-  -d '{"prompt":"what is 2+2"}'
-# → {"tracking_id":"plan-..."}
+  -d '{"agent":"react","messages":[{"role":"user","content":[{"type":"text","text":"写一首关于大海的诗"}]}]}'
+# → {"plan_id":"plan-..."}
 
 # Stream the result
-curl -s -N "http://localhost:9090/stream?plan=<tracking_id>"
-# → data: {"type":"result","text":"2+2 equals 4..."}
-# → data: {"type":"done"}
-```
-
-Health check:
-
-```bash
-curl http://localhost:9090/healthz
-# → ok
+curl -s -N "http://localhost:9090/stream?plan=<plan_id>"
+# → status / step_result / stream / done SSE frames
 ```
 
 ---
@@ -238,49 +254,52 @@ curl http://localhost:9090/healthz
 
 ```
 lucinda/
-├── api/v1/                       # Shared API types
-│   ├── capability/               #   CapabilityCV + Match scoring
+├── api/v1/                       # Shared API types (stable data contracts)
+│   ├── capability/               #   CapabilityCV (data; Match strategy lives in TaskBoard)
 │   ├── chat/                     #   ChatRequest, ChatResponse, StreamChunk
-│   ├── event/                    #   Event struct + EventType constants
 │   ├── hardware/                 #   HardwareSnapshot types
-│   ├── module/                   #   ModuleType, ModuleID, ModuleHealth
 │   ├── node/                     #   NodeID, Protocol, NodeMessage
-│   ├── provider/                 #   Provider interface + ProviderConfig
-│   ├── task/                     #   Task, TaskPlan, TaskNode, TaskSpec
-│   └── taskmsg/                  #   Wire message types (broadcast, bid, assign, result)
+│   ├── provider/                 #   Provider interface, ModelInfo, ModelFilter
+│   ├── registry/module/          #   ModuleType, ModuleID, ModuleHealth
+│   ├── stream/                   #   SSE frame envelope types
+│   ├── task/                     #   Task, TaskPlan (Transactions), TaskSpec (Kind), Transaction
+│   ├── messaging/event/          #   Event struct + EventType constants
+│   └── messaging/taskmsg/        #   Wire messages (broadcast, CV, assign, traced, stream)
 │
-├── pkg/infrastructure_layer/     # Phase 1 — Foundation
+├── pkg/infrastructure_layer/     # Layer 1 — Infrastructure
 │   ├── eventbus/                 #   In-memory EventBus
 │   ├── transport/                #   Transport interface
 │   │   └── transporters/         #     libp2p implementation (host, mDNS, self-worker)
 │   ├── hardware_monitor/         #   CPU/memory polling + EventBus
-│   ├── module_manager/           #   Module registry + capability grant
-│   └── provider/                 #   ProviderController
-│       └── drivers/              #     vllm, ollama (factory + init registration)
+│   ├── module_manager/           #   Module registry + DI (DependsOn/DependsEnable)
+│   ├── logger/                   #   slog wrapper (text/json/colored)
+│   └── provider/                 #   ProviderController + drivers (vllm, ollama)
 │
-├── internal/                     # Business logic
-│   ├── task_management_layer/
-│   │   ├── task_postman/         #   EventBus ↔ Transport bridge
-│   │   ├── task_state_manager/   #   Node FSM (Pending→Ready→Claimed→Running→Done)
-│   │   └── task_tracer/          #   Task observability store
-│   ├── task_workflow_layer/
-│   │   ├── task_board/           #   Publish-Lease protocol + cross-node routing
-│   │   ├── task_planner/         #   LLM decomposition + DAG construction
-│   │   ├── task_executor/        #   Parallel sub-task execution
-│   │   └── task_reducer/         #   LLM synthesis + context truncation
-│   ├── task_wrapper/             #   ChatRequest → Task conversion
-│   └── user_server/              #   HTTP ingress (chat, SSE stream, health)
+├── internal/
+│   ├── task_management_layer/    # Layer 2 — Task Management
+│   │   ├── task_board/           #   Publish-Lease + matchCV strategy
+│   │   ├── task_tracer/          #   Task lifecycle registry + TaskTraced
+│   │   ├── postman/              #   Coordination EventBus ↔ Transport bridge
+│   │   ├── telemetry_bridge/     #   Progress telemetry unicast to owner
+│   │   └── stream_router/        #   Final-answer token stream data plane
+│   ├── task_workflow_layer/      # Layer 3 — Task Workflow
+│   │   ├── task_planner/         #   Semantic decomposition (provider-free)
+│   │   ├── task_commander/       #   Multi-transaction ReAct/Plan-Execute (provider-free)
+│   │   ├── task_executor/        #   reason/execute/synthesize task kinds
+│   │   ├── task_monitor/         #   SSE aggregation (telemetry + stream)
+│   │   └── eventx/               #   Watch/Emit helpers
+│   ├── task_wrapper/             #   ChatRequest → raw Task (external util)
+│   ├── user_server/              #   HTTP ingress (chat, SSE stream, health)
+│   ├── testutil/                 #   Mock transport / provider / controller
+│   └── task_workflow_layer/crossnode/  # Two-node integration tests
 │
-├── cmd/
-│   ├── pc/                       #   Active entrypoint (config-driven)
-│   │   ├── main.go               #     Bootstrap + graceful shutdown
-│   │   └── plugins.go            #     Provider driver imports
-│   └── node/                     #   Legacy (commented out)
-│
+├── cmd/pc/                       # Active entrypoint (config-driven)
+│   ├── main.go                   #   Bootstrap + graceful shutdown
+│   └── plugins.go                #   Provider driver imports
 ├── configs/server/               # YAML configuration
-├── scripts/                      # test_e2e.sh
-├── docs/                         # Documentation, diagrams, pipeline
-└── go.mod
+├── scripts/                      # start_lucinda.sh, test_smoke.sh, test_smoke_simple.sh
+├── docs/                         # Documentation, proposals, diagrams
+└── openspec/                     # Change proposals + capability specs
 ```
 
 ---
@@ -290,25 +309,19 @@ lucinda/
 ### Testing
 
 ```bash
-# All tests
-go test ./internal/... ./pkg/...
+# All tests (race detector)
+go test -race ./internal/... ./api/...
 
 # Individual packages
 go test -v ./pkg/infrastructure_layer/eventbus/
 go test -v -timeout 90s ./pkg/infrastructure_layer/transport/transporters/
-go test -v -timeout 30s ./pkg/infrastructure_layer/hardware_monitor/
-go test -v ./pkg/infrastructure_layer/module_manager/
-go test -v ./pkg/infrastructure_layer/provider/drivers/vllm/
-go test -v ./internal/task_management_layer/task_state_manager/
-go test -v ./internal/task_management_layer/task_tracer/
-go test -v ./internal/task_management_layer/task_postman/
-go test -v ./internal/task_workflow_layer/task_board/
+go test -v ./internal/task_management_layer/task_board/
+go test -v ./internal/task_workflow_layer/task_commander/
 go test -v ./internal/task_workflow_layer/task_planner/
-go test -v ./internal/task_workflow_layer/task_executor/
-go test -v ./internal/task_workflow_layer/task_reducer/
 
-# End-to-end test
-bash ./scripts/test_e2e.sh
+# Smoke (needs a running server or --start)
+bash scripts/test_smoke_simple.sh --start
+bash scripts/test_smoke.sh --start
 ```
 
 ---
@@ -320,8 +333,9 @@ bash ./scripts/test_e2e.sh
 | Hardware awareness | None (cloud-centric) | Static single-node | Strong (cluster telemetry) | **Dynamic real-time telemetry** |
 | Distributed scheduling | Standalone routing | No multi-node coordination | Master-worker topology | **Decentralized Publish-Lease DAG** |
 | Stream-control isolation | Logic and data coupled | Raw token capture | Generic packet handling | **Private channels + EventBus split** |
-| Agent-native pipeline | Macro flow graphs | Inference endpoint only | Generic container compute | **Native Plan-Execute-Reduce workflow** |
-| Fault tolerance | None | None | Restart-based | **30s TTL-lease with automatic reclamation** |
+| Agent-native pipeline | Macro flow graphs | Inference endpoint only | Generic container compute | **Semantic transactions + per-transaction Commander** |
+| Provider coupling | Cloud-locked | Single node | N/A | **Provider-free planner/commander; executor routes by capability** |
+| Fault tolerance | None | None | Restart-based | **Re-advertise + graceful plan failure** |
 
 ---
 

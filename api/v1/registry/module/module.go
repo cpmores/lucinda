@@ -14,12 +14,24 @@ type (
 
 // ModuleTypes are defined under API
 const (
+	// infrastructure layer modules
 	EventBus           ModuleType = "eventbus"
 	Transport          ModuleType = "transport"
 	HardwareMonitor    ModuleType = "hardware_monitor"
 	ModuleManager      ModuleType = "module_manager"
 	ProviderController ModuleType = "provider_controller"
 	Logger             ModuleType = "logger"
+	// task management layer modules
+	TelemetryBridge ModuleType = "telemetry_bridge"
+	StreamRouter    ModuleType = "stream_router"
+	TaskPostman     ModuleType = "task_postman"
+	TaskBoard       ModuleType = "task_board"
+	TaskTracer      ModuleType = "task_tracer"
+	// task workflow layer modules
+	TaskPlanner   ModuleType = "task_planner"
+	TaskCommander ModuleType = "task_commander"
+	TaskExecutor  ModuleType = "task_executor"
+	TaskMonitor   ModuleType = "task_monitor"
 )
 
 // Module Status
